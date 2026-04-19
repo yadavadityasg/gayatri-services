@@ -32,7 +32,7 @@ export const Route = createFileRoute("/services/$slug")({
 });
 
 function ServiceDetailPage() {
-  const { service } = Route.useLoaderData();
+  const { service } = Route.useLoaderData() as { service: RepairService };
   const navigate = useNavigate();
   const [brand, setBrand] = useState("");
   const [problem, setProblem] = useState("");

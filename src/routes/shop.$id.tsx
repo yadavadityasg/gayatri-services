@@ -27,7 +27,7 @@ export const Route = createFileRoute("/shop/$id")({
 });
 
 function ProductDetailPage() {
-  const { product } = Route.useLoaderData();
+  const { product } = Route.useLoaderData() as { product: Product };
   const navigate = useNavigate();
   const [emiMonths, setEmiMonths] = useState(12);
   const emi = Math.round(product.price / emiMonths);
