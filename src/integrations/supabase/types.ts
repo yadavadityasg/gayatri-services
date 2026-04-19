@@ -14,7 +14,117 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          address_line: string
+          brand: string | null
+          city: string | null
+          created_at: string
+          description: string | null
+          floor_landmark: string | null
+          id: string
+          pincode: string | null
+          preferred_date: string
+          problem: string | null
+          service_name: string
+          service_slug: string
+          status: string
+          technician_name: string | null
+          time_slot: string
+          updated_at: string
+          user_id: string
+          visit_charge: number
+        }
+        Insert: {
+          address_line: string
+          brand?: string | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          floor_landmark?: string | null
+          id?: string
+          pincode?: string | null
+          preferred_date: string
+          problem?: string | null
+          service_name: string
+          service_slug: string
+          status?: string
+          technician_name?: string | null
+          time_slot: string
+          updated_at?: string
+          user_id: string
+          visit_charge?: number
+        }
+        Update: {
+          address_line?: string
+          brand?: string | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          floor_landmark?: string | null
+          id?: string
+          pincode?: string | null
+          preferred_date?: string
+          problem?: string | null
+          service_name?: string
+          service_slug?: string
+          status?: string
+          technician_name?: string | null
+          time_slot?: string
+          updated_at?: string
+          user_id?: string
+          visit_charge?: number
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          address: Json
+          created_at: string
+          delivery_fee: number
+          discount: number
+          gst: number
+          id: string
+          items: Json
+          payment_method: string
+          status: string
+          subtotal: number
+          total: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address: Json
+          created_at?: string
+          delivery_fee?: number
+          discount?: number
+          gst?: number
+          id?: string
+          items: Json
+          payment_method: string
+          status?: string
+          subtotal: number
+          total: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: Json
+          created_at?: string
+          delivery_fee?: number
+          discount?: number
+          gst?: number
+          id?: string
+          items?: Json
+          payment_method?: string
+          status?: string
+          subtotal?: number
+          total?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
