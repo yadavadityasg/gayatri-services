@@ -10,10 +10,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/$id")({
-  loader: ({ params }): { product: Product } => {
+  loader: ({ params }) => {
     const product = PRODUCTS.find(p => p.id === params.id);
     if (!product) throw notFound();
-    return { product };
+    return { product: product as Product };
   },
   head: ({ loaderData }) => ({
     meta: [
@@ -27,7 +27,7 @@ export const Route = createFileRoute("/shop/$id")({
 });
 
 function ProductDetailPage() {
-  const { product } = Route.useLoaderData();
+  const { product } = Route.useLoaderData() as { product: Product };
   const navigate = useNavigate();
   const [emiMonths, setEmiMonths] = useState(12);
   const emi = Math.round(product.price / emiMonths);
