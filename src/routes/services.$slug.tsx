@@ -14,10 +14,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/services/$slug")({
-  loader: ({ params }): { service: RepairService } => {
+  loader: ({ params }) => {
     const service = SERVICES.find(s => s.slug === params.slug);
     if (!service) throw notFound();
-    return { service };
+    return { service: service as RepairService };
   },
   head: ({ loaderData }) => ({
     meta: [

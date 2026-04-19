@@ -10,10 +10,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/$id")({
-  loader: ({ params }): { product: Product } => {
+  loader: ({ params }) => {
     const product = PRODUCTS.find(p => p.id === params.id);
     if (!product) throw notFound();
-    return { product };
+    return { product: product as Product };
   },
   head: ({ loaderData }) => ({
     meta: [
