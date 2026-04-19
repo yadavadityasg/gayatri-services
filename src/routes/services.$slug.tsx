@@ -7,14 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SERVICES, BRANDS } from "@/data/catalog";
+import { SERVICES, BRANDS, type RepairService } from "@/data/catalog";
 import { fmt } from "@/lib/cart";
 import { CheckCircle2, ShieldCheck, Clock, Wrench, ChevronRight, Star } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/services/$slug")({
-  loader: ({ params }) => {
+  loader: ({ params }): { service: RepairService } => {
     const service = SERVICES.find(s => s.slug === params.slug);
     if (!service) throw notFound();
     return { service };

@@ -3,14 +3,14 @@ import { Layout } from "@/components/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PRODUCTS } from "@/data/catalog";
+import { PRODUCTS, type Product } from "@/data/catalog";
 import { addToCart, fmt } from "@/lib/cart";
 import { Star, ShieldCheck, Truck, Wrench, ChevronRight, Heart, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/$id")({
-  loader: ({ params }) => {
+  loader: ({ params }): { product: Product } => {
     const product = PRODUCTS.find(p => p.id === params.id);
     if (!product) throw notFound();
     return { product };
