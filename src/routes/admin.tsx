@@ -20,16 +20,51 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setInfo("");
+
+    if (mode === "signup") {
+      const { data, error: signErr } = await supabase.auth.signUp({
+        email, password,
+        options: { emailRedirectTo: `${window.location.origin}/admin` },
+      });
+      if (signErr) {
+        setError(signErr.message);
+        setLoading(false); return;
+      }
+      // If session is returned, auto-confirm is on — proceed with role check
+      if (data.session && data.user) {
+        const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle();
+        if (!roleRow) {
+          await supabase.auth.signOut();
+          setError("Account created, but this email is not configured as admin.");
+          setLoading(false); return;
+        }
+        toast.success("Admin account created!");
+        onSuccess();
+        return;
+      }
+      // Otherwise email confirmation required
+      setInfo("Account created. Check your email to confirm, then sign in.");
+      setMode("login");
+      setLoading(false);
+      return;
+    }
+
     const { data, error: signErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (signErr || !data.user) { setError(signErr?.message || "Login failed"); setLoading(false); return; }
+    if (signErr || !data.user) {
+      const msg = signErr?.message || "Login failed";
+      setError(msg.includes("Invalid login") ? "Invalid email or password. If you haven't created an admin account yet, switch to Sign up." : msg);
+      setLoading(false); return;
+    }
     const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle();
     if (!roleRow) {
       await supabase.auth.signOut();
@@ -47,13 +82,25 @@ function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
           <h1 className="text-2xl font-bold">Admin Access</h1>
           <p className="text-sm text-muted-foreground">Restricted area — admins only</p>
         </div>
+        <Tabs value={mode} onValueChange={v => { setMode(v as any); setError(""); setInfo(""); }}>
+          <TabsList className="grid grid-cols-2 w-full mb-4">
+            <TabsTrigger value="login">Sign in</TabsTrigger>
+            <TabsTrigger value="signup">Sign up</TabsTrigger>
+          </TabsList>
+        </Tabs>
         <form onSubmit={submit} className="space-y-4">
           <div><Label>Email</Label><Input type="email" required value={email} onChange={e => setEmail(e.target.value)} /></div>
-          <div><Label>Password</Label><Input type="password" required value={password} onChange={e => setPassword(e.target.value)} /></div>
+          <div><Label>Password</Label><Input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 6 characters" /></div>
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {info && <p className="text-sm text-primary">{info}</p>}
           <Button type="submit" className="w-full bg-gradient-gold text-primary-foreground" disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (mode === "signup" ? "Create admin account" : "Sign In")}
           </Button>
+          {mode === "signup" && (
+            <p className="text-xs text-center text-muted-foreground">
+              Only the configured admin email will receive admin privileges.
+            </p>
+          )}
           <p className="text-xs text-center text-muted-foreground">
             <Link to="/" className="underline">← Back to site</Link>
           </p>
