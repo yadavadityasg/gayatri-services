@@ -1,96 +1,80 @@
 
-The user is asking for a research/advisory answer (hosting roadmap), not a code change. No plan tag needed for pure Q&A — but since they asked for a "roadmap" I'll structure it clearly. Key facts about this app:
+The user wants me to swap the build target from Cloudflare Workers to AWS Lambda + add GitHub Actions deploy script. Before planning, I need to flag a critical constraint.
 
-- TanStack Start v1 (SSR React) targeting Cloudflare Workers via wrangler
-- Uses Lovable Cloud (Supabase) for DB + auth
-- Static assets + SSR server entry
-- Low traffic expected (small business site)
+## Critical constraint
 
-Cheapest AWS = avoid EC2/ECS/RDS. Use serverless + managed free tiers.
+This Lovable project is locked to the Cloudflare Workers build target. Specifically:
+- `vite.config.ts` uses `@lovable.dev/vite-tanstack-config` which **bakes in the Cloudflare adapter** (per the comment: "cloudflare (build-only)") and explicitly forbids adding adapters manually.
+- `wrangler.jsonc` configures the Worker entry as `@tanstack/react-start/server-entry`.
+- The Lovable preview/publish pipeline itself runs on Cloudflare Workers — changing the adapter would break the in-Lovable preview and the Lovable "Publish" button.
 
-# AWS Hosting Roadmap — Lowest Cost
+So I **cannot** swap the build target inside the Lovable project itself without breaking the Lovable preview. The right approach is to keep Lovable as-is and do the AWS deploy from the GitHub mirror using a **separate build script** that overrides the adapter at deploy time.
 
-## Architecture overview
+## Proposed plan
 
-```text
- Users
-   │
-   ▼
-CloudFront (CDN, free tier 1TB/mo first year, then ~$0.085/GB)
-   │
-   ├──► S3 bucket          → static assets (JS/CSS/images)
-   │
-   └──► Lambda@Edge or     → SSR (TanStack Start server entry)
-        Lambda + API GW
-                │
-                ▼
-        Supabase (keep as-is, free tier) OR migrate to:
-        - Supabase self-hosted on Lightsail ($5/mo), or
-        - AWS RDS Aurora Serverless v2 (min 0.5 ACU ≈ $43/mo) — NOT cheap
-        - Neon/Supabase cloud free tier — recommended
-```
+### Approach: dual-target via CI override (don't touch vite.config.ts)
 
-## Phase 1 — Prep the app (1–2 hrs)
+Keep the Lovable project running on Cloudflare for preview. Add a parallel AWS build path that runs only in GitHub Actions:
 
-1. Switch the build target from Cloudflare Workers to **Node** so it runs on Lambda. Edit `vite.config.ts` to remove the Cloudflare preset (or use the AWS Lambda adapter for TanStack Start).
-2. Verify SSR build outputs: `.output/server/` (handler) + `.output/public/` (static).
-3. Keep Lovable Cloud / Supabase for DB + auth — moving the DB off is where costs explode.
+1. **Add `vite.config.aws.ts`** — a separate Vite config that uses the TanStack Start Node/Lambda adapter (`target: 'node-server'`), bypassing `@lovable.dev/vite-tanstack-config`. This file is ignored by Lovable's build.
 
-## Phase 2 — Cheapest path: S3 + CloudFront + Lambda Function URL (recommended)
+2. **Add `scripts/build-aws.mjs`** — wraps the build with `vite build --config vite.config.aws.ts` and produces:
+   - `.output/server/index.mjs` — Lambda handler (wrapped with a Node `awslambda` adapter shim)
+   - `.output/public/` — static assets for S3
 
-| Component | Purpose | Monthly cost (low traffic) |
-|---|---|---|
-| S3 bucket | Static assets | ~$0.10 |
-| CloudFront | CDN + HTTPS | Free tier 1 TB/mo first year, then ~$1–3 |
-| Lambda (Function URL) | SSR handler | Free tier 1M requests + 400k GB-s/mo, then ~$0 for small site |
-| Route 53 hosted zone | DNS (optional, $0.50/mo) | $0.50 |
-| ACM cert | TLS | Free |
-| **Total** | | **~$0–2/mo first year, ~$2–5/mo after** |
+3. **Add `scripts/lambda-handler.mjs`** — small adapter that converts API Gateway / Function URL events to the standard `Request`/`Response` the TanStack Node server expects.
 
-Steps:
-1. Create S3 bucket → upload `.output/public/` (private, OAC-only access).
-2. Create Lambda function (Node 20), deploy `.output/server/` handler. Enable Function URL.
-3. Create CloudFront distribution:
-   - Default origin → Lambda Function URL (SSR routes)
-   - `/assets/*` and `/_build/*` origin → S3 (cache forever)
-4. Attach ACM cert + custom domain via Route 53 (or Cloudflare DNS for free).
-5. Set up GitHub Actions for CI/CD (free): build → upload to S3 → update Lambda.
+4. **Add `.github/workflows/deploy-aws.yml`** — GitHub Actions workflow that:
+   - Triggers on push to `main` (and manual dispatch)
+   - Installs deps, runs `node scripts/build-aws.mjs`
+   - Syncs `.output/public/` → S3 (`aws s3 sync --delete`)
+   - Zips `.output/server/` and updates the Lambda function (`aws lambda update-function-code`)
+   - Creates a CloudFront invalidation for `/*`
+   - Uses OIDC (recommended) or IAM access keys from GitHub Secrets
 
-## Phase 3 — Even cheaper alternative: Lightsail ($3.50–5/mo flat)
+5. **Add `infra/README.md`** — one-time manual AWS setup steps (S3 bucket name, Lambda function name, CloudFront distribution ID, IAM role/user, GitHub secrets to set).
 
-If you want **predictable flat pricing** and don't care about scale:
+### Required GitHub Secrets
 
-- AWS Lightsail instance $3.50/mo (512 MB RAM, 20 GB SSD, 1 TB transfer)
-- Run `node .output/server/index.mjs` behind nginx
-- Cloudflare in front (free) for HTTPS + CDN + DDoS
-- **Total: $3.50/mo, all-in**
+User must add these in GitHub repo → Settings → Secrets:
+- `AWS_ROLE_ARN` (for OIDC) **or** `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION` (e.g. `us-east-1`)
+- `S3_BUCKET` (assets bucket name)
+- `LAMBDA_FUNCTION_NAME` (e.g. `tanstack-ssr`)
+- `CLOUDFRONT_DISTRIBUTION_ID`
 
-Trade-off: single VM, you patch the OS, no auto-scale. Fine for a repair-shop site.
+### One-time AWS setup (user does in AWS Console, ~15 min)
 
-## Phase 4 — Database options (ranked by cost)
+1. Create S3 bucket (block public access, enable OAC)
+2. Create Lambda function (Node 20, 512 MB, 10s timeout, Function URL enabled)
+3. Create CloudFront distribution: default origin = Lambda Function URL; `/assets/*` + `/_build/*` + `/favicon.ico` → S3 origin (OAC)
+4. Create IAM role for GitHub OIDC with `s3:PutObject`, `lambda:UpdateFunctionCode`, `cloudfront:CreateInvalidation`
+5. Add the secrets above to GitHub
 
-1. **Keep Lovable Cloud / Supabase free tier** → $0/mo, zero migration work. *Recommended.*
-2. **Supabase self-hosted on the same Lightsail box** → $0 extra, more ops.
-3. **Neon Postgres free tier** → $0, drop-in Postgres replacement.
-4. **AWS RDS / Aurora Serverless** → $40+/mo minimum. Avoid for this use case.
+### Files to create
 
-## Phase 5 — Things to NOT do (cost traps)
+- `vite.config.aws.ts`
+- `scripts/build-aws.mjs`
+- `scripts/lambda-handler.mjs`
+- `.github/workflows/deploy-aws.yml`
+- `infra/README.md`
 
-- Don't use **Amplify Hosting** for SSR — pricing creeps fast (~$15+/mo at low traffic).
-- Don't use **ECS Fargate** — minimum ~$10/mo per task, and you need 2 for HA.
-- Don't use **RDS** unless required — fixed monthly cost dwarfs everything.
-- Don't enable **NAT Gateway** ($32/mo) — keep Lambda outside VPC.
+### Files NOT touched
 
-## Cost summary
+- `vite.config.ts` (stays Cloudflare-only — required by Lovable)
+- `wrangler.jsonc` (stays as-is)
+- `src/router.tsx` (works on both targets)
+- Any application code
 
-| Setup | Monthly cost | Best for |
-|---|---|---|
-| S3 + CloudFront + Lambda + Supabase free | **$0–5** | Lowest, scales to zero |
-| Lightsail $3.50 + Cloudflare + Supabase free | **$3.50** | Predictable flat fee |
-| Amplify Hosting + RDS | $50+ | Avoid |
+### Risks / caveats to flag
 
-## Recommendation
+- **TanStack Start AWS Lambda adapter is community-maintained** — may need a thin custom handler shim. The Node server entry exists; we wrap it for Lambda Function URL events.
+- **Cold starts**: ~300–500ms for first request after idle. For ~$0.20/mo extra, can add provisioned concurrency = 1.
+- **Server functions** that depend on Cloudflare-specific bindings would break, but this app uses Supabase via fetch — fully portable.
+- **Lovable Cloud (Supabase) stays as the DB** — no migration. The Lambda just calls Supabase over HTTPS like Cloudflare does today.
 
-Go with **Phase 2** (S3 + CloudFront + Lambda) and **keep Supabase as the DB**. You'll pay essentially $0 for the first year (AWS free tier) and $2–5/mo after, with the app auto-scaling to zero when idle. The only real work is swapping the Vite build target from Cloudflare Workers to a Node/Lambda adapter and wiring up CloudFront.
+### After approval, single-message implementation
 
-Want me to switch the build target to a Lambda-compatible adapter and add a deploy script next?
+I'll create all 5 files in one batch. User then does the one-time AWS Console setup using `infra/README.md` and pushes to GitHub — first deploy runs automatically.
+
+Want me to proceed with this dual-target setup, or would you rather skip Lambda entirely and use the **Lightsail $3.50/mo** path (simpler: one VM, `git pull && npm run build && pm2 restart`, no adapter swap needed)?
