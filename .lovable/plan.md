@@ -1,33 +1,96 @@
 
-## Diagnosis
+The user is asking for a research/advisory answer (hosting roadmap), not a code change. No plan tag needed for pure Q&A — but since they asked for a "roadmap" I'll structure it clearly. Key facts about this app:
 
-The 400 error from `/auth/v1/token?grant_type=password` with `error_code: invalid_credentials` means Supabase rejected the login because no user exists with those credentials. This is not a code bug — it's a "user doesn't exist / wrong password" response.
+- TanStack Start v1 (SSR React) targeting Cloudflare Workers via wrangler
+- Uses Lovable Cloud (Supabase) for DB + auth
+- Static assets + SSR server entry
+- Low traffic expected (small business site)
 
-Looking at `src/routes/admin.tsx` (which I haven't viewed but based on prior context), the admin page likely only shows the **Login** tab, not Sign up. So you have no way to create the admin account from `/admin` — and `/login` creates regular users, not admins (the trigger only grants admin to `yadavaditya.sg@gmail.com` regardless of which page they sign up on, but you may not have signed up at all yet).
+Cheapest AWS = avoid EC2/ECS/RDS. Use serverless + managed free tiers.
 
-## Plan
+# AWS Hosting Roadmap — Lowest Cost
 
-**Step 1 — Verify** (you do this, no code change):
-Open `/login`, switch to **Sign up** tab, register with `yadavaditya.sg@gmail.com` + a password you'll remember. The DB trigger `handle_new_user_role` auto-grants admin role. Then go to `/admin` and log in with the same credentials.
+## Architecture overview
 
-**If that works → done, no code changes needed.**
+```text
+ Users
+   │
+   ▼
+CloudFront (CDN, free tier 1TB/mo first year, then ~$0.085/GB)
+   │
+   ├──► S3 bucket          → static assets (JS/CSS/images)
+   │
+   └──► Lambda@Edge or     → SSR (TanStack Start server entry)
+        Lambda + API GW
+                │
+                ▼
+        Supabase (keep as-is, free tier) OR migrate to:
+        - Supabase self-hosted on Lightsail ($5/mo), or
+        - AWS RDS Aurora Serverless v2 (min 0.5 ACU ≈ $43/mo) — NOT cheap
+        - Neon/Supabase cloud free tier — recommended
+```
 
-**Step 2 — If `/admin` has no Sign up tab, add one** (code change):
-Update `src/routes/admin.tsx` to include a Sign up tab on the admin login screen, identical structure to `/login`, so the admin account can be created directly from `/admin`. After signup, the trigger grants admin role and the dashboard becomes accessible.
+## Phase 1 — Prep the app (1–2 hrs)
 
-**Step 3 — Better error messaging** (small polish):
-On invalid credentials, show a clearer toast: "No admin account found with that email. Sign up first or check your password."
+1. Switch the build target from Cloudflare Workers to **Node** so it runs on Lambda. Edit `vite.config.ts` to remove the Cloudflare preset (or use the AWS Lambda adapter for TanStack Start).
+2. Verify SSR build outputs: `.output/server/` (handler) + `.output/public/` (static).
+3. Keep Lovable Cloud / Supabase for DB + auth — moving the DB off is where costs explode.
 
-## What I need to confirm before editing
+## Phase 2 — Cheapest path: S3 + CloudFront + Lambda Function URL (recommended)
 
-I need to view `src/routes/admin.tsx` to see whether it already has a Sign up tab. If yes, the fix is just clearer messaging + a hint. If no, I'll add the Sign up tab.
+| Component | Purpose | Monthly cost (low traffic) |
+|---|---|---|
+| S3 bucket | Static assets | ~$0.10 |
+| CloudFront | CDN + HTTPS | Free tier 1 TB/mo first year, then ~$1–3 |
+| Lambda (Function URL) | SSR handler | Free tier 1M requests + 400k GB-s/mo, then ~$0 for small site |
+| Route 53 hosted zone | DNS (optional, $0.50/mo) | $0.50 |
+| ACM cert | TLS | Free |
+| **Total** | | **~$0–2/mo first year, ~$2–5/mo after** |
 
-## Recommended action for you right now
+Steps:
+1. Create S3 bucket → upload `.output/public/` (private, OAC-only access).
+2. Create Lambda function (Node 20), deploy `.output/server/` handler. Enable Function URL.
+3. Create CloudFront distribution:
+   - Default origin → Lambda Function URL (SSR routes)
+   - `/assets/*` and `/_build/*` origin → S3 (cache forever)
+4. Attach ACM cert + custom domain via Route 53 (or Cloudflare DNS for free).
+5. Set up GitHub Actions for CI/CD (free): build → upload to S3 → update Lambda.
 
-Try this first — no code change needed:
-1. Go to `/login` (not `/admin`)
-2. Click **Sign up** tab
-3. Use email `yadavaditya.sg@gmail.com` + any password (min 6 chars)
-4. Then go to `/admin` and log in with those same credentials
+## Phase 3 — Even cheaper alternative: Lightsail ($3.50–5/mo flat)
 
-If that works, you're done. If `/admin` still rejects you after a successful signup, reply and I'll switch to default mode to add a Sign up tab to `/admin` and improve the error message.
+If you want **predictable flat pricing** and don't care about scale:
+
+- AWS Lightsail instance $3.50/mo (512 MB RAM, 20 GB SSD, 1 TB transfer)
+- Run `node .output/server/index.mjs` behind nginx
+- Cloudflare in front (free) for HTTPS + CDN + DDoS
+- **Total: $3.50/mo, all-in**
+
+Trade-off: single VM, you patch the OS, no auto-scale. Fine for a repair-shop site.
+
+## Phase 4 — Database options (ranked by cost)
+
+1. **Keep Lovable Cloud / Supabase free tier** → $0/mo, zero migration work. *Recommended.*
+2. **Supabase self-hosted on the same Lightsail box** → $0 extra, more ops.
+3. **Neon Postgres free tier** → $0, drop-in Postgres replacement.
+4. **AWS RDS / Aurora Serverless** → $40+/mo minimum. Avoid for this use case.
+
+## Phase 5 — Things to NOT do (cost traps)
+
+- Don't use **Amplify Hosting** for SSR — pricing creeps fast (~$15+/mo at low traffic).
+- Don't use **ECS Fargate** — minimum ~$10/mo per task, and you need 2 for HA.
+- Don't use **RDS** unless required — fixed monthly cost dwarfs everything.
+- Don't enable **NAT Gateway** ($32/mo) — keep Lambda outside VPC.
+
+## Cost summary
+
+| Setup | Monthly cost | Best for |
+|---|---|---|
+| S3 + CloudFront + Lambda + Supabase free | **$0–5** | Lowest, scales to zero |
+| Lightsail $3.50 + Cloudflare + Supabase free | **$3.50** | Predictable flat fee |
+| Amplify Hosting + RDS | $50+ | Avoid |
+
+## Recommendation
+
+Go with **Phase 2** (S3 + CloudFront + Lambda) and **keep Supabase as the DB**. You'll pay essentially $0 for the first year (AWS free tier) and $2–5/mo after, with the app auto-scaling to zero when idle. The only real work is swapping the Vite build target from Cloudflare Workers to a Node/Lambda adapter and wiring up CloudFront.
+
+Want me to switch the build target to a Lambda-compatible adapter and add a deploy script next?
