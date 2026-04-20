@@ -41,6 +41,15 @@ if (!existsSync(serverDir)) {
   process.exit(1);
 }
 
+// Debug: print first 40 lines of server/index.mjs to show its exports
+const indexMjs = resolve(serverDir, "index.mjs");
+if (existsSync(indexMjs)) {
+  const lines = readFileSync(indexMjs, "utf8").split("\n").slice(0, 40).join("\n");
+  console.log("▶ First 40 lines of .output/server/index.mjs:\n" + lines + "\n");
+} else {
+  console.warn("⚠ .output/server/index.mjs not found");
+}
+
 // Copy the Lambda adapter shim alongside the server bundle
 const handlerSrc = resolve(__dirname, "lambda-handler.mjs");
 const handlerDest = resolve(serverDir, "lambda.mjs");
