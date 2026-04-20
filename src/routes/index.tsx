@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import heroAc from "@/assets/hero-ac-repair.png";
+import heroWashing from "@/assets/hero-washing-repair.png";
 
 const GOOGLE_REVIEWS_URL = "https://share.google/JVEQN94vOLOkgY9aZ";
 
@@ -52,26 +54,35 @@ function HomePage() {
     <Layout>
       {/* Hero */}
       <section className="relative bg-gradient-ink text-secondary-foreground overflow-hidden">
-        <div className="absolute inset-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1581094794329-c8112a89af12?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center" />
         <div className="container mx-auto px-4 py-16 md:py-24 relative">
-          <div className="max-w-3xl">
-            <Badge className="mb-4 bg-primary/15 text-primary border border-primary/30 hover:bg-primary/15 gap-1"><Star className="h-3 w-3 fill-primary" /> 4.9 · 947 Google reviews</Badge>
-            <h1 className="text-4xl md:text-6xl font-bold leading-tight">
-              Expert Repairs.<br /><span className="text-gradient-gold">Genuine Electronics.</span>
-            </h1>
-            <p className="mt-4 text-lg opacity-80 max-w-xl">
-              From same-day appliance repair to certified new & refurbished electronics — Gayatri brings premium service to your doorstep.
-            </p>
-            <form onSubmit={onSearch} className="mt-8 max-w-xl flex gap-2 bg-card rounded-xl p-2 shadow-elevated">
-              <div className="flex-1 flex items-center px-3">
-                <Search className="h-5 w-5 text-muted-foreground" />
-                <Input value={q} onChange={e=>setQ(e.target.value)} placeholder="What do you need help with today?" className="border-0 shadow-none text-foreground focus-visible:ring-0" />
+          <div className="grid lg:grid-cols-2 gap-10 items-center">
+            <div className="max-w-xl">
+              <Badge className="mb-4 bg-primary/15 text-primary border border-primary/30 hover:bg-primary/15 gap-1"><Star className="h-3 w-3 fill-primary" /> 4.9 · 947 Google reviews</Badge>
+              <h1 className="text-4xl md:text-6xl font-bold leading-tight">
+                Expert Repairs.<br /><span className="text-gradient-gold">Genuine Electronics.</span>
+              </h1>
+              <p className="mt-4 text-lg opacity-80">
+                From same-day appliance repair to certified new & refurbished electronics — Gayatri brings premium service to your doorstep.
+              </p>
+              <form onSubmit={onSearch} className="mt-8 flex gap-2 bg-card rounded-xl p-2 shadow-elevated">
+                <div className="flex-1 flex items-center px-3">
+                  <Search className="h-5 w-5 text-muted-foreground" />
+                  <Input value={q} onChange={e=>setQ(e.target.value)} placeholder="What do you need help with today?" className="border-0 shadow-none text-foreground focus-visible:ring-0" />
+                </div>
+                <Button type="submit" className="bg-gradient-gold text-primary-foreground">Search</Button>
+              </form>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link to="/booking"><Button size="lg" className="bg-gradient-gold text-primary-foreground shadow-gold">Book a Repair <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+                <Link to="/shop"><Button size="lg" variant="outline" className="border-primary/40 bg-transparent text-secondary-foreground hover:bg-primary/10 hover:text-secondary-foreground">Shop Electronics</Button></Link>
               </div>
-              <Button type="submit" className="bg-gradient-gold text-primary-foreground">Search</Button>
-            </form>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link to="/booking"><Button size="lg" className="bg-gradient-gold text-primary-foreground shadow-gold">Book a Repair <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
-              <Link to="/shop"><Button size="lg" variant="outline" className="border-primary/40 bg-transparent text-secondary-foreground hover:bg-primary/10 hover:text-secondary-foreground">Shop Electronics</Button></Link>
+            </div>
+            <div className="relative grid grid-cols-2 gap-3 md:gap-4">
+              <div className="relative aspect-[3/4] rounded-2xl overflow-hidden shadow-elevated ring-1 ring-primary/20 translate-y-4">
+                <img src={heroAc} alt="Gayatri technician repairing a split AC at a customer's home" className="w-full h-full object-cover" loading="eager" />
+              </div>
+              <div className="relative aspect-[3/4] rounded-2xl overflow-hidden shadow-elevated ring-1 ring-primary/20 -translate-y-4">
+                <img src={heroWashing} alt="Gayatri technician repairing a washing machine in the workshop" className="w-full h-full object-cover" loading="eager" />
+              </div>
             </div>
           </div>
         </div>
