@@ -10,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
 
 console.log("▶ Building TanStack Start (Node server target) for AWS Lambda…");
-execSync("vite build --config vite.config.aws.ts", {
+execSync("bunx vite build --config vite.config.aws.ts", {
   stdio: "inherit",
   cwd: root,
   env: { ...process.env, NODE_ENV: "production" },
