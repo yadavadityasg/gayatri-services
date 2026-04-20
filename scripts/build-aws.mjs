@@ -9,6 +9,25 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
 
+function getPackageName(specifier) {
+  if (!specifier || specifier.startsWith("node:") || specifier.startsWith(".") || specifier.startsWith("/")) {
+    return null;
+  }
+
+  if (specifier.startsWith("@")) {
+    const [scope, name] = specifier.split("/");
+    return scope && name ? `${scope}/${name}` : null;
+  }
+
+  return specifier.split("/")[0] ?? null;
+}
+
+function getInstalledPackageVersion(packageName) {
+  const packageJsonPath = resolve(root, "node_modules", packageName, "package.json");
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  return packageJson.version;
+}
+
 console.log("▶ Building TanStack Start (aws-lambda target) for AWS Lambda…");
 execSync("bunx vite build --config vite.config.aws.ts", {
   stdio: "inherit",
@@ -53,6 +72,37 @@ if (existsSync(serverJs)) {
   const exportLines = allLines.filter((l) => l.startsWith("export ") || l.startsWith("export{") || l.startsWith("export {"));
   console.log("▶ Export statements in server.js:");
   console.log(exportLines.join("\n") || "  (none found at line start — may be inline exports)\n");
+
+  const specifierRegex = /\b(?:import|export)\b(?:[^"']*?\bfrom\s*)?["']([^"']+)["']/g;
+  const runtimePackages = [...new Set([...content.matchAll(specifierRegex)]
+    .map((match) => getPackageName(match[1]))
+    .filter(Boolean))];
+
+  if (runtimePackages.length > 0) {
+    const runtimeDependencies = Object.fromEntries(
+      runtimePackages.map((packageName) => [packageName, getInstalledPackageVersion(packageName)]),
+    );
+
+    console.log("▶ Installing Lambda runtime dependencies:");
+    for (const packageName of runtimePackages) {
+      console.log(`  - ${packageName}@${runtimeDependencies[packageName]}`);
+    }
+
+    writeFileSync(
+      resolve(serverDir, "package.json"),
+      JSON.stringify({
+        type: "module",
+        private: true,
+        dependencies: runtimeDependencies,
+      }, null, 2),
+    );
+
+    execSync("bun install --production", {
+      stdio: "inherit",
+      cwd: serverDir,
+      env: { ...process.env, NODE_ENV: "production" },
+    });
+  }
 } else {
   console.warn("⚠ .output/server/server.js not found — check build output above");
 }
@@ -62,12 +112,6 @@ const handlerSrc = resolve(__dirname, "lambda-handler.mjs");
 const handlerDest = resolve(serverDir, "lambda.mjs");
 cpSync(handlerSrc, handlerDest);
 console.log(`✓ Copied lambda handler → ${handlerDest}`);
-
-// Write a minimal package.json so Lambda treats the bundle as ESM
-writeFileSync(
-  resolve(serverDir, "package.json"),
-  JSON.stringify({ type: "module" }, null, 2),
-);
 
 // Zip the server bundle for `aws lambda update-function-code`
 const zipPath = resolve(root, ".output/lambda.zip");
