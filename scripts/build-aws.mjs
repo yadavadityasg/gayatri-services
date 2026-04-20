@@ -2,7 +2,7 @@
 // Builds the app for AWS Lambda + S3 deployment.
 // Usage: node scripts/build-aws.mjs
 import { execSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
