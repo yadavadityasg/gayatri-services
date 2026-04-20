@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SERVICES, PRODUCTS } from "@/data/catalog";
+import { supabase } from "@/integrations/supabase/client";
 import { fmt } from "@/lib/cart";
 import { Search } from "lucide-react";
 import { z } from "zod";
@@ -13,15 +13,24 @@ const search = z.object({ q: z.string().optional() });
 
 export const Route = createFileRoute("/search")({
   validateSearch: search,
+  loaderDeps: ({ search }) => ({ q: search.q ?? "" }),
+  loader: async ({ deps }) => {
+    const term = deps.q.trim();
+    if (!term) return { services: [], products: [] };
+    const like = `%${term}%`;
+    const [svcRes, prodRes] = await Promise.all([
+      supabase.from("services").select("*").eq("active", true).or(`name.ilike.${like},category_label.ilike.${like}`),
+      supabase.from("products").select("*").eq("active", true).or(`name.ilike.${like},brand.ilike.${like}`),
+    ]);
+    return { services: svcRes.data ?? [], products: prodRes.data ?? [] };
+  },
   head: () => ({ meta: [{ title: "Search | Gayatri" }] }),
   component: SearchPage,
 });
 
 function SearchPage() {
   const { q = "" } = Route.useSearch();
-  const term = q.toLowerCase();
-  const services = term ? SERVICES.filter(s => s.name.toLowerCase().includes(term) || s.categoryLabel.toLowerCase().includes(term) || s.problems.some(p=>p.toLowerCase().includes(term))) : [];
-  const products = term ? PRODUCTS.filter(p => p.name.toLowerCase().includes(term) || p.brand.toLowerCase().includes(term)) : [];
+  const { services, products } = Route.useLoaderData();
 
   return (
     <Layout>
@@ -42,12 +51,12 @@ function SearchPage() {
           </TabsList>
 
           <TabsContent value="all" className="space-y-8">
-            {services.length > 0 && <Section title="Repair Services">{services.map(s => <ServiceRow key={s.slug} s={s} />)}</Section>}
-            {products.length > 0 && <Section title="Products"><div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{products.map(p => <ProductCard key={p.id} p={p} />)}</div></Section>}
+            {services.length > 0 && <Section title="Repair Services">{services.map((s: any) => <ServiceRow key={s.slug} s={s} />)}</Section>}
+            {products.length > 0 && <Section title="Products"><div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{products.map((p: any) => <ProductCard key={p.id} p={p} />)}</div></Section>}
             {services.length + products.length === 0 && <Card className="p-10 text-center text-muted-foreground">No matches. Try AC, fridge, washing machine, RO, or a brand name.</Card>}
           </TabsContent>
-          <TabsContent value="services" className="space-y-3">{services.map(s => <ServiceRow key={s.slug} s={s} />)}</TabsContent>
-          <TabsContent value="products"><div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{products.map(p => <ProductCard key={p.id} p={p} />)}</div></TabsContent>
+          <TabsContent value="services" className="space-y-3">{services.map((s: any) => <ServiceRow key={s.slug} s={s} />)}</TabsContent>
+          <TabsContent value="products"><div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{products.map((p: any) => <ProductCard key={p.id} p={p} />)}</div></TabsContent>
         </Tabs>
       </div>
     </Layout>
@@ -59,9 +68,9 @@ function ServiceRow({s}: any) {
   return (
     <Card className="p-4 flex items-center justify-between gap-4 flex-wrap">
       <div>
-        <Badge variant="outline" className="mb-1">{s.categoryLabel}</Badge>
+        <Badge variant="outline" className="mb-1">{s.category_label}</Badge>
         <div className="font-semibold">{s.name}</div>
-        <div className="text-xs text-muted-foreground">From {fmt(s.startingAt)} · {s.duration}</div>
+        <div className="text-xs text-muted-foreground">From {fmt(s.starting_at)} · {s.duration}</div>
       </div>
       <Link to="/services/$slug" params={{slug:s.slug}}><Button size="sm" className="bg-gradient-gold text-primary-foreground">View</Button></Link>
     </Card>

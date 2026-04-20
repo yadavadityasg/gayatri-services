@@ -3,7 +3,8 @@ import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CATEGORIES, SERVICES, type ServiceCategory } from "@/data/catalog";
+import { CATEGORIES, type ServiceCategory } from "@/data/catalog";
+import { supabase } from "@/integrations/supabase/client";
 import { fmt } from "@/lib/cart";
 import { Clock, CheckCircle2, ArrowRight } from "lucide-react";
 import { useState } from "react";
@@ -19,13 +20,19 @@ export const Route = createFileRoute("/services")({
       { name: "description", content: "Browse all home appliance repair services with upfront pricing. Same-day visits across Navi Mumbai." },
     ],
   }),
+  loader: async () => {
+    const { data, error } = await supabase.from("services").select("*").eq("active", true).order("name");
+    if (error) throw error;
+    return { services: data ?? [] };
+  },
   component: ServicesPage,
 });
 
 function ServicesPage() {
+  const { services } = Route.useLoaderData();
   const sp = Route.useSearch();
   const [active, setActive] = useState<ServiceCategory | "all">((sp.cat as ServiceCategory) || "all");
-  const filtered = active === "all" ? SERVICES : SERVICES.filter(s => s.category === active);
+  const filtered = active === "all" ? services : services.filter((s: any) => s.category === active);
 
   return (
     <Layout>
@@ -45,21 +52,23 @@ function ServicesPage() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.map(s => (
+          {filtered.map((s: any) => {
+            const includes: string[] = Array.isArray(s.includes) ? s.includes : [];
+            return (
             <Card key={s.slug} className="hover-lift p-6 flex flex-col">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <Badge className="mb-2 bg-accent text-accent-foreground hover:bg-accent">{s.categoryLabel}</Badge>
+                  <Badge className="mb-2 bg-accent text-accent-foreground hover:bg-accent">{s.category_label}</Badge>
                   <h3 className="font-semibold text-lg">{s.name}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{s.short}</p>
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-muted-foreground">Starting</div>
-                  <div className="text-xl font-bold text-primary">{fmt(s.startingAt)}</div>
+                  <div className="text-xl font-bold text-primary">{fmt(s.starting_at)}</div>
                 </div>
               </div>
               <ul className="mt-4 space-y-1.5 text-sm">
-                {s.includes.slice(0,3).map((inc, i) => (
+                {includes.slice(0,3).map((inc, i) => (
                   <li key={i} className="flex gap-2"><CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />{inc}</li>
                 ))}
               </ul>
@@ -75,7 +84,7 @@ function ServicesPage() {
                 </Link>
               </div>
             </Card>
-          ))}
+          );})}
         </div>
       </section>
     </Layout>
