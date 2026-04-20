@@ -1,32 +1,25 @@
 
 
-## Where to get `SUPABASE_SERVICE_ROLE_KEY`
+## Fix: scan all server bundle files for runtime imports
 
-The Lovable Cloud UI doesn't have a "reveal value" button for backend-managed secrets like the service role key. Two reliable ways to get it:
+**Root cause**: `scripts/build-aws.mjs` only scans `.output/server/server.js` for bare-package imports. But TanStack/Nitro splits SSR code into chunks under `.output/server/assets/*.js`, and those chunks import packages like `sonner`, `lucide-react`, `@radix-ui/*`, etc. Those packages are never copied into the Lambda zip → `ERR_MODULE_NOT_FOUND` at runtime.
 
-### Option A — Cloud → Secrets page (try first)
-1. Sidebar → **Secrets** (you were here earlier)
-2. Find `SUPABASE_SERVICE_ROLE_KEY` in the list
-3. Click the row / eye icon to reveal the value
-4. If no reveal button appears, use Option B
+**Fix**: walk the entire `.output/server/` directory recursively, scan every `.js`/`.mjs` file for bare imports, dedupe, then run the existing `collectRuntimePackages` + copy logic on the union.
 
-### Option B — Print it from a temporary edge function (guaranteed)
-The secret IS available to backend code via `Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")`. I'll create a one-time edge function that returns it, you copy the value into Lambda, then we delete the function.
+### Change
 
-Steps once you approve:
-1. I create `supabase/functions/get-service-key/index.ts` that returns the key (no auth, temporary)
-2. You hit the function URL once, copy the value
-3. I delete the function immediately
+In `scripts/build-aws.mjs`, replace the single-file scan (lines ~104–140) with a recursive scan:
 
-⚠️ This key bypasses all security rules. Only paste it into your Lambda env vars, never into git or client code.
+1. Add a small `walkJsFiles(dir)` helper that yields every `.js`/`.mjs` file under `dir` (skip the `node_modules` subdir we're populating).
+2. Build the import set from the union of all those files (same regex, same `getPackageName`).
+3. Feed that set into the existing `collectRuntimePackages` → copy → write `package.json` flow (unchanged).
+4. Keep the existing debug prints for `server.js` exports (useful diagnostics), just move the package-collection step to operate on the full set.
 
-### Then add to Lambda
-Lambda → Configuration → Environment variables → Edit → Add:
-- `SUPABASE_URL` = `https://xsoxhdxuicqibstqufdp.supabase.co`
-- `SUPABASE_PUBLISHABLE_KEY` = (anon key from your `.env`)
-- `SUPABASE_SERVICE_ROLE_KEY` = (value from Option A or B)
+After this, the Lambda zip will include `sonner` and any other packages referenced by split SSR chunks (along with their transitive deps, which `collectRuntimePackages` already handles).
 
-Save → wait ~10s → reload CloudFront URL.
+### After deploy
 
-Approve and I'll create the temporary edge function (Option B). Or try Option A first and report back.
+Push to GitHub → workflow rebuilds → Lambda updates. Then reload the CloudFront URL. If a new missing-package error appears it would mean a package is loaded by a path the regex missed (e.g. dynamic `import(variable)`), but for static `from "sonner"`-style imports this fix is complete.
+
+Also reminder: once the site loads, **delete `supabase/functions/get-service-key/`** — it currently exposes the service role key publicly.
 
