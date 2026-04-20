@@ -2,7 +2,7 @@
 // Builds the app for AWS Lambda + S3 deployment.
 // Usage: node scripts/build-aws.mjs
 import { execSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -76,7 +76,6 @@ execSync("bunx vite build --config vite.config.aws.ts", {
 });
 
 // Debug: show what was actually produced
-import { readdirSync } from "node:fs";
 console.log("▶ Build output contents:");
 try {
   for (const entry of readdirSync(resolve(root, ".output"))) {
@@ -100,46 +99,68 @@ if (!existsSync(serverDir)) {
   process.exit(1);
 }
 
-// Debug: show what server.js exports
+// Recursively walk all .js/.mjs files under the server bundle (skip node_modules we'll populate).
+function* walkJsFiles(dir) {
+  for (const entry of readdirSync(dir)) {
+    if (entry === "node_modules") continue;
+    const full = resolve(dir, entry);
+    const stat = statSync(full);
+    if (stat.isDirectory()) {
+      yield* walkJsFiles(full);
+    } else if (/\.(m?js)$/.test(entry)) {
+      yield full;
+    }
+  }
+}
+
+const specifierRegex = /\b(?:import|export)\b(?:[^"']*?\bfrom\s*)?["']([^"']+)["']/g;
+const dynamicImportRegex = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
+
+const runtimePackagesSet = new Set();
+let scannedFileCount = 0;
+for (const file of walkJsFiles(serverDir)) {
+  scannedFileCount++;
+  const content = readFileSync(file, "utf8");
+  for (const match of content.matchAll(specifierRegex)) {
+    const pkg = getPackageName(match[1]);
+    if (pkg) runtimePackagesSet.add(pkg);
+  }
+  for (const match of content.matchAll(dynamicImportRegex)) {
+    const pkg = getPackageName(match[1]);
+    if (pkg) runtimePackagesSet.add(pkg);
+  }
+}
+console.log(`▶ Scanned ${scannedFileCount} server bundle file(s); found ${runtimePackagesSet.size} bare-package import(s).`);
+
+// Debug: show server.js exports if present
 const serverJs = resolve(serverDir, "server.js");
 if (existsSync(serverJs)) {
   const content = readFileSync(serverJs, "utf8");
   const allLines = content.split("\n");
-  // Last 30 lines (where exports are usually defined in bundled output)
-  console.log("▶ Last 30 lines of .output/server/server.js:");
-  console.log(allLines.slice(-30).join("\n") + "\n");
-  // All lines that start with 'export'
-  const exportLines = allLines.filter((l) => l.startsWith("export ") || l.startsWith("export{") || l.startsWith("export {"));
-  console.log("▶ Export statements in server.js:");
-  console.log(exportLines.join("\n") || "  (none found at line start — may be inline exports)\n");
+  console.log("▶ Last 15 lines of .output/server/server.js:");
+  console.log(allLines.slice(-15).join("\n") + "\n");
+}
 
-  const specifierRegex = /\b(?:import|export)\b(?:[^"']*?\bfrom\s*)?["']([^"']+)["']/g;
-  const runtimePackages = [...new Set([...content.matchAll(specifierRegex)]
-    .map((match) => getPackageName(match[1]))
-    .filter(Boolean))];
+const runtimePackages = [...runtimePackagesSet];
+if (runtimePackages.length > 0) {
+  const bundledRuntimePackages = collectRuntimePackages(runtimePackages);
 
-  if (runtimePackages.length > 0) {
-    const bundledRuntimePackages = collectRuntimePackages(runtimePackages);
-
-    console.log("▶ Installing Lambda runtime dependencies:");
-    for (const packageName of bundledRuntimePackages) {
-      console.log(`  - ${packageName}@${getInstalledPackageVersion(packageName)}`);
-      copyPackageToBundle(packageName, serverDir);
-    }
-
-    writeFileSync(
-      resolve(serverDir, "package.json"),
-      JSON.stringify({
-        type: "module",
-        private: true,
-        dependencies: Object.fromEntries(
-          bundledRuntimePackages.map((packageName) => [packageName, getInstalledPackageVersion(packageName)]),
-        ),
-      }, null, 2),
-    );
+  console.log("▶ Installing Lambda runtime dependencies:");
+  for (const packageName of bundledRuntimePackages) {
+    console.log(`  - ${packageName}@${getInstalledPackageVersion(packageName)}`);
+    copyPackageToBundle(packageName, serverDir);
   }
-} else {
-  console.warn("⚠ .output/server/server.js not found — check build output above");
+
+  writeFileSync(
+    resolve(serverDir, "package.json"),
+    JSON.stringify({
+      type: "module",
+      private: true,
+      dependencies: Object.fromEntries(
+        bundledRuntimePackages.map((packageName) => [packageName, getInstalledPackageVersion(packageName)]),
+      ),
+    }, null, 2),
+  );
 }
 
 // Copy the Lambda adapter shim alongside the server bundle
