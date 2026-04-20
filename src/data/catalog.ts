@@ -100,7 +100,7 @@ export interface Product {
 const ph = (q: string) => `https://images.unsplash.com/${q}?q=80&w=900&auto=format&fit=crop`;
 export const PRODUCTS: Product[] = [
   { id:"P001", name:"1.5 Ton 5 Star Inverter Split AC", brand:"LG", category:"ac", condition:"New", price:32999, mrp:45990, rating:4.6, reviews:1284,
-    image: ph("photo-1581275299888-536c7d68f06d"), capacity:"1.5 Ton", energyRating:5,
+    image: "https://yadavaditya-image-gallery.s3.ap-south-1.amazonaws.com/images/1776693270779-lg.jpg", capacity:"1.5 Ton", energyRating:5,
     specs:[{label:"Capacity",value:"1.5 Ton"},{label:"Star Rating",value:"5 Star"},{label:"Type",value:"Inverter Split"},{label:"Refrigerant",value:"R32"},{label:"Coil",value:"Copper"}],
     description:"LG dual-inverter split AC with 4-in-1 convertible cooling, low-noise operation and Ocean Black Protection.",
     box:["Indoor unit","Outdoor unit","Remote","User manual","Warranty card"], warranty:"1 yr product + 10 yr compressor" },
