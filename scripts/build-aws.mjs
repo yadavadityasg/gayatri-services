@@ -41,11 +41,18 @@ if (!existsSync(serverDir)) {
   process.exit(1);
 }
 
-// Debug: print first 40 lines of server/server.js to show its exports
+// Debug: show what server.js exports
 const serverJs = resolve(serverDir, "server.js");
 if (existsSync(serverJs)) {
-  const lines = readFileSync(serverJs, "utf8").split("\n").slice(0, 40).join("\n");
-  console.log("▶ First 40 lines of .output/server/server.js:\n" + lines + "\n");
+  const content = readFileSync(serverJs, "utf8");
+  const allLines = content.split("\n");
+  // Last 30 lines (where exports are usually defined in bundled output)
+  console.log("▶ Last 30 lines of .output/server/server.js:");
+  console.log(allLines.slice(-30).join("\n") + "\n");
+  // All lines that start with 'export'
+  const exportLines = allLines.filter((l) => l.startsWith("export ") || l.startsWith("export{") || l.startsWith("export {"));
+  console.log("▶ Export statements in server.js:");
+  console.log(exportLines.join("\n") || "  (none found at line start — may be inline exports)\n");
 } else {
   console.warn("⚠ .output/server/server.js not found — check build output above");
 }
