@@ -9,6 +9,65 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
 
+function getPackageName(specifier) {
+  if (!specifier || specifier.startsWith("node:") || specifier.startsWith(".") || specifier.startsWith("/")) {
+    return null;
+  }
+
+  if (specifier.startsWith("@")) {
+    const [scope, name] = specifier.split("/");
+    return scope && name ? `${scope}/${name}` : null;
+  }
+
+  return specifier.split("/")[0] ?? null;
+}
+
+function getInstalledPackageVersion(packageName) {
+  const packageJsonPath = resolve(root, "node_modules", packageName, "package.json");
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  return packageJson.version;
+}
+
+function getInstalledPackageJson(packageName) {
+  const packageJsonPath = resolve(root, "node_modules", packageName, "package.json");
+  return JSON.parse(readFileSync(packageJsonPath, "utf8"));
+}
+
+function collectRuntimePackages(packageNames) {
+  const packages = new Set();
+  const queue = [...packageNames];
+
+  while (queue.length > 0) {
+    const packageName = queue.shift();
+    if (!packageName || packages.has(packageName)) continue;
+
+    const packageDir = resolve(root, "node_modules", packageName);
+    if (!existsSync(packageDir)) continue;
+
+    packages.add(packageName);
+
+    const packageJson = getInstalledPackageJson(packageName);
+    const dependencies = {
+      ...(packageJson.dependencies ?? {}),
+      ...(packageJson.peerDependencies ?? {}),
+    };
+
+    for (const dependencyName of Object.keys(dependencies)) {
+      queue.push(dependencyName);
+    }
+  }
+
+  return [...packages];
+}
+
+function copyPackageToBundle(packageName, serverDir) {
+  const sourceDir = resolve(root, "node_modules", packageName);
+  const destinationDir = resolve(serverDir, "node_modules", packageName);
+
+  mkdirSync(dirname(destinationDir), { recursive: true });
+  cpSync(sourceDir, destinationDir, { recursive: true });
+}
+
 console.log("▶ Building TanStack Start (aws-lambda target) for AWS Lambda…");
 execSync("bunx vite build --config vite.config.aws.ts", {
   stdio: "inherit",
@@ -53,6 +112,32 @@ if (existsSync(serverJs)) {
   const exportLines = allLines.filter((l) => l.startsWith("export ") || l.startsWith("export{") || l.startsWith("export {"));
   console.log("▶ Export statements in server.js:");
   console.log(exportLines.join("\n") || "  (none found at line start — may be inline exports)\n");
+
+  const specifierRegex = /\b(?:import|export)\b(?:[^"']*?\bfrom\s*)?["']([^"']+)["']/g;
+  const runtimePackages = [...new Set([...content.matchAll(specifierRegex)]
+    .map((match) => getPackageName(match[1]))
+    .filter(Boolean))];
+
+  if (runtimePackages.length > 0) {
+    const bundledRuntimePackages = collectRuntimePackages(runtimePackages);
+
+    console.log("▶ Installing Lambda runtime dependencies:");
+    for (const packageName of bundledRuntimePackages) {
+      console.log(`  - ${packageName}@${getInstalledPackageVersion(packageName)}`);
+      copyPackageToBundle(packageName, serverDir);
+    }
+
+    writeFileSync(
+      resolve(serverDir, "package.json"),
+      JSON.stringify({
+        type: "module",
+        private: true,
+        dependencies: Object.fromEntries(
+          bundledRuntimePackages.map((packageName) => [packageName, getInstalledPackageVersion(packageName)]),
+        ),
+      }, null, 2),
+    );
+  }
 } else {
   console.warn("⚠ .output/server/server.js not found — check build output above");
 }
@@ -62,12 +147,6 @@ const handlerSrc = resolve(__dirname, "lambda-handler.mjs");
 const handlerDest = resolve(serverDir, "lambda.mjs");
 cpSync(handlerSrc, handlerDest);
 console.log(`✓ Copied lambda handler → ${handlerDest}`);
-
-// Write a minimal package.json so Lambda treats the bundle as ESM
-writeFileSync(
-  resolve(serverDir, "package.json"),
-  JSON.stringify({ type: "module" }, null, 2),
-);
 
 // Zip the server bundle for `aws lambda update-function-code`
 const zipPath = resolve(root, ".output/lambda.zip");
