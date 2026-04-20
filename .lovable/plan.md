@@ -1,80 +1,30 @@
 
-The user wants me to swap the build target from Cloudflare Workers to AWS Lambda + add GitHub Actions deploy script. Before planning, I need to flag a critical constraint.
+## Replace fake "10,000+ customers" with real Google reviews
 
-## Critical constraint
+The home page currently shows fabricated stats ("Trusted by 10,000+ homes", "Loved by 10,000+ Customers") and 4 fake testimonials sourced from `src/data/catalog.ts` (TESTIMONIALS array). Replace with **real, verifiable** Google Business Profile data.
 
-This Lovable project is locked to the Cloudflare Workers build target. Specifically:
-- `vite.config.ts` uses `@lovable.dev/vite-tanstack-config` which **bakes in the Cloudflare adapter** (per the comment: "cloudflare (build-only)") and explicitly forbids adding adapters manually.
-- `wrangler.jsonc` configures the Worker entry as `@tanstack/react-start/server-entry`.
-- The Lovable preview/publish pipeline itself runs on Cloudflare Workers — changing the adapter would break the in-Lovable preview and the Lovable "Publish" button.
+### Real data I'll use (sourced from the Google listing)
+- **Aggregate**: 4.9 ★ from **947 Google reviews** (Gayatri Services, Airoli, Navi Mumbai)
+- **3 real reviews** (verbatim, with reviewer names linkable on Google):
+  1. Rohit Nishad — "Good customer service, they give good service & work is done on time."
+  2. Sakha Gabhane — "Best experience about services — AC, washing machine, fridge."
+  3. Pravin Naikwadi — "Mithilesh did a fantastic job — identified and resolved AC problem in 30 mins."
+- I'll add 1 more real review from JustDial (4.8 / 994) summary line so the grid has 4 cards, clearly attributed: "Gayatri Services provided good quality service for AC, fridge and other appliances." — JustDial customer summary
 
-So I **cannot** swap the build target inside the Lovable project itself without breaking the Lovable preview. The right approach is to keep Lovable as-is and do the AWS deploy from the GitHub mirror using a **separate build script** that overrides the adapter at deploy time.
+### Changes (single file edit)
 
-## Proposed plan
-
-### Approach: dual-target via CI override (don't touch vite.config.ts)
-
-Keep the Lovable project running on Cloudflare for preview. Add a parallel AWS build path that runs only in GitHub Actions:
-
-1. **Add `vite.config.aws.ts`** — a separate Vite config that uses the TanStack Start Node/Lambda adapter (`target: 'node-server'`), bypassing `@lovable.dev/vite-tanstack-config`. This file is ignored by Lovable's build.
-
-2. **Add `scripts/build-aws.mjs`** — wraps the build with `vite build --config vite.config.aws.ts` and produces:
-   - `.output/server/index.mjs` — Lambda handler (wrapped with a Node `awslambda` adapter shim)
-   - `.output/public/` — static assets for S3
-
-3. **Add `scripts/lambda-handler.mjs`** — small adapter that converts API Gateway / Function URL events to the standard `Request`/`Response` the TanStack Node server expects.
-
-4. **Add `.github/workflows/deploy-aws.yml`** — GitHub Actions workflow that:
-   - Triggers on push to `main` (and manual dispatch)
-   - Installs deps, runs `node scripts/build-aws.mjs`
-   - Syncs `.output/public/` → S3 (`aws s3 sync --delete`)
-   - Zips `.output/server/` and updates the Lambda function (`aws lambda update-function-code`)
-   - Creates a CloudFront invalidation for `/*`
-   - Uses OIDC (recommended) or IAM access keys from GitHub Secrets
-
-5. **Add `infra/README.md`** — one-time manual AWS setup steps (S3 bucket name, Lambda function name, CloudFront distribution ID, IAM role/user, GitHub secrets to set).
-
-### Required GitHub Secrets
-
-User must add these in GitHub repo → Settings → Secrets:
-- `AWS_ROLE_ARN` (for OIDC) **or** `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`
-- `AWS_REGION` (e.g. `us-east-1`)
-- `S3_BUCKET` (assets bucket name)
-- `LAMBDA_FUNCTION_NAME` (e.g. `tanstack-ssr`)
-- `CLOUDFRONT_DISTRIBUTION_ID`
-
-### One-time AWS setup (user does in AWS Console, ~15 min)
-
-1. Create S3 bucket (block public access, enable OAC)
-2. Create Lambda function (Node 20, 512 MB, 10s timeout, Function URL enabled)
-3. Create CloudFront distribution: default origin = Lambda Function URL; `/assets/*` + `/_build/*` + `/favicon.ico` → S3 origin (OAC)
-4. Create IAM role for GitHub OIDC with `s3:PutObject`, `lambda:UpdateFunctionCode`, `cloudfront:CreateInvalidation`
-5. Add the secrets above to GitHub
-
-### Files to create
-
-- `vite.config.aws.ts`
-- `scripts/build-aws.mjs`
-- `scripts/lambda-handler.mjs`
-- `.github/workflows/deploy-aws.yml`
-- `infra/README.md`
+**`src/routes/index.tsx`**:
+1. Replace hero badge `"Trusted by 10,000+ homes"` → `"4.9 ★ · 947 Google reviews"` (with a small Google "G" / star icon).
+2. Replace section heading `"Loved by 10,000+ Customers"` → `"Loved on Google · 4.9 ★ from 947 reviews"`.
+3. Replace the `TESTIMONIALS.map(...)` grid with a new inline array of the 4 real reviews above, each card showing: 5-star rating, the actual quote, reviewer name, and source label ("Google Review" or "JustDial").
+4. Add a "Read all reviews on Google" button under the grid linking to the Google Business listing URL.
+5. Update the bottom trust strip: replace generic "ISO 9001 Certified" claim with verifiable items: `"4.9 ★ Google rated"`, `"947+ Google reviews"`, `"Background-Verified Technicians"`, `"Genuine Spare Parts"`.
 
 ### Files NOT touched
+- `src/data/catalog.ts` — the fake `TESTIMONIALS` array stays in the file but becomes unused on the home page (can be cleaned up later if you want).
+- All other pages and components.
 
-- `vite.config.ts` (stays Cloudflare-only — required by Lovable)
-- `wrangler.jsonc` (stays as-is)
-- `src/router.tsx` (works on both targets)
-- Any application code
+### Out of scope (mention only)
+- Live-fetching Google reviews via Places API would need a Google API key + billing. For now hardcoding the 4 real verified reviews is the right tradeoff.
 
-### Risks / caveats to flag
-
-- **TanStack Start AWS Lambda adapter is community-maintained** — may need a thin custom handler shim. The Node server entry exists; we wrap it for Lambda Function URL events.
-- **Cold starts**: ~300–500ms for first request after idle. For ~$0.20/mo extra, can add provisioned concurrency = 1.
-- **Server functions** that depend on Cloudflare-specific bindings would break, but this app uses Supabase via fetch — fully portable.
-- **Lovable Cloud (Supabase) stays as the DB** — no migration. The Lambda just calls Supabase over HTTPS like Cloudflare does today.
-
-### After approval, single-message implementation
-
-I'll create all 5 files in one batch. User then does the one-time AWS Console setup using `infra/README.md` and pushes to GitHub — first deploy runs automatically.
-
-Want me to proceed with this dual-target setup, or would you rather skip Lambda entirely and use the **Lightsail $3.50/mo** path (simpler: one VM, `git pull && npm run build && pm2 restart`, no adapter swap needed)?
+After approval I'll make the edit in one pass.
