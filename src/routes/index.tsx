@@ -4,7 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { SERVICES, PRODUCTS, TESTIMONIALS } from "@/data/catalog";
+import { SERVICES, PRODUCTS } from "@/data/catalog";
+
+const GOOGLE_REVIEWS_URL = "https://share.google/JVEQN94vOLOkgY9aZ";
+
+const REAL_REVIEWS = [
+  { name: "Rohit Nishad", source: "Google Review", rating: 5, text: "Good customer service, they give good service & work is done on time." },
+  { name: "Sakha Gabhane", source: "Google Review", rating: 5, text: "Best experience about services — AC, washing machine, fridge." },
+  { name: "Pravin Naikwadi", source: "Google Review", rating: 5, text: "Mithilesh did a fantastic job — identified and resolved my AC problem in 30 minutes." },
+  { name: "Verified Customer", source: "JustDial", rating: 5, text: "Gayatri Services provided good quality service for AC, fridge and other appliances." },
+];
 import { fmt, addToCart } from "@/lib/cart";
 import { Search, ShieldCheck, Clock, Award, Wrench, Users, Star, ArrowRight, CheckCircle2, Snowflake, Flame, Tv, Droplet, Wind, Microwave, Refrigerator, WashingMachine } from "lucide-react";
 import { useState } from "react";
@@ -41,7 +50,7 @@ function HomePage() {
         <div className="absolute inset-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1581094794329-c8112a89af12?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center" />
         <div className="container mx-auto px-4 py-16 md:py-24 relative">
           <div className="max-w-3xl">
-            <Badge className="mb-4 bg-primary/15 text-primary border border-primary/30 hover:bg-primary/15">Trusted by 10,000+ homes</Badge>
+            <Badge className="mb-4 bg-primary/15 text-primary border border-primary/30 hover:bg-primary/15 gap-1"><Star className="h-3 w-3 fill-primary" /> 4.9 · 947 Google reviews</Badge>
             <h1 className="text-4xl md:text-6xl font-bold leading-tight">
               Expert Repairs.<br /><span className="text-gradient-gold">Genuine Electronics.</span>
             </h1>
@@ -171,27 +180,37 @@ function HomePage() {
 
       {/* Testimonials */}
       <section className="container mx-auto px-4 py-14">
-        <h2 className="text-3xl md:text-4xl font-bold text-center">Loved by <span className="text-gradient-gold">10,000+ Customers</span></h2>
+        <div className="text-center">
+          <h2 className="text-3xl md:text-4xl font-bold">Loved on <span className="text-gradient-gold">Google</span></h2>
+          <p className="text-muted-foreground mt-2 flex items-center justify-center gap-1">
+            <Star className="h-4 w-4 fill-primary text-primary" /> 4.9 average from 947 verified reviews
+          </p>
+        </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mt-10">
-          {TESTIMONIALS.map((t, i) => (
-            <Card key={i} className="p-5">
+          {REAL_REVIEWS.map((t, i) => (
+            <Card key={i} className="p-5 flex flex-col">
               <div className="flex gap-1 mb-2">
                 {Array.from({length: t.rating}).map((_, j) => <Star key={j} className="h-4 w-4 fill-primary text-primary" />)}
               </div>
-              <p className="text-sm">{t.text}</p>
+              <p className="text-sm flex-1">"{t.text}"</p>
               <div className="mt-4 text-xs">
                 <div className="font-semibold">{t.name}</div>
-                <div className="text-muted-foreground">{t.city} · {t.appliance}</div>
+                <div className="text-muted-foreground">{t.source}</div>
               </div>
             </Card>
           ))}
+        </div>
+        <div className="text-center mt-8">
+          <a href={GOOGLE_REVIEWS_URL} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" className="border-primary/40">Read all reviews on Google <ArrowRight className="ml-2 h-4 w-4" /></Button>
+          </a>
         </div>
       </section>
 
       {/* Trust */}
       <section className="bg-secondary text-secondary-foreground py-10">
         <div className="container mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-          {["ISO 9001 Certified","Insured Service","Background-Verified Staff","Genuine Parts Guaranteed"].map((b, i) => (
+          {["4.9 ★ Google Rated","947+ Google Reviews","Background-Verified Technicians","Genuine Spare Parts"].map((b, i) => (
             <div key={i} className="flex items-center justify-center gap-2">
               <ShieldCheck className="h-5 w-5 text-primary" />
               <span className="text-sm font-medium">{b}</span>
