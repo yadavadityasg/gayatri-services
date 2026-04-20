@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
 
-console.log("▶ Building TanStack Start (Node server target) for AWS Lambda…");
+console.log("▶ Building TanStack Start (aws-lambda target) for AWS Lambda…");
 execSync("bunx vite build --config vite.config.aws.ts", {
   stdio: "inherit",
   cwd: root,
@@ -41,13 +41,13 @@ if (!existsSync(serverDir)) {
   process.exit(1);
 }
 
-// Debug: print first 40 lines of server/index.mjs to show its exports
-const indexMjs = resolve(serverDir, "index.mjs");
-if (existsSync(indexMjs)) {
-  const lines = readFileSync(indexMjs, "utf8").split("\n").slice(0, 40).join("\n");
-  console.log("▶ First 40 lines of .output/server/index.mjs:\n" + lines + "\n");
+// Debug: print first 40 lines of server/server.js to show its exports
+const serverJs = resolve(serverDir, "server.js");
+if (existsSync(serverJs)) {
+  const lines = readFileSync(serverJs, "utf8").split("\n").slice(0, 40).join("\n");
+  console.log("▶ First 40 lines of .output/server/server.js:\n" + lines + "\n");
 } else {
-  console.warn("⚠ .output/server/index.mjs not found");
+  console.warn("⚠ .output/server/server.js not found — check build output above");
 }
 
 // Copy the Lambda adapter shim alongside the server bundle
