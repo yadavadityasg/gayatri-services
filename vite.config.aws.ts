@@ -1,4 +1,5 @@
 // AWS Lambda build target — used ONLY by scripts/build-aws.mjs in GitHub Actions.
+// Uses the aws-lambda preset so Nitro emits a handler export (not a standalone server).
 // Lovable's preview/publish keeps using vite.config.ts (Cloudflare Workers).
 // Do NOT import this from anywhere else.
 import { defineConfig } from "vite";
@@ -13,8 +14,9 @@ export default defineConfig({
     tsConfigPaths(),
     tailwindcss(),
     tanstackStart({
-      // Node server bundle that we wrap for AWS Lambda
-      target: "node-server",
+      // aws-lambda preset: Nitro emits index.mjs that exports { handler }
+      // so Lambda can invoke it directly without a child-process proxy.
+      target: "aws-lambda",
     }),
     react(),
   ],
