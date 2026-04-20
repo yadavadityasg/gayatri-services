@@ -28,6 +28,46 @@ function getInstalledPackageVersion(packageName) {
   return packageJson.version;
 }
 
+function getInstalledPackageJson(packageName) {
+  const packageJsonPath = resolve(root, "node_modules", packageName, "package.json");
+  return JSON.parse(readFileSync(packageJsonPath, "utf8"));
+}
+
+function collectRuntimePackages(packageNames) {
+  const packages = new Set();
+  const queue = [...packageNames];
+
+  while (queue.length > 0) {
+    const packageName = queue.shift();
+    if (!packageName || packages.has(packageName)) continue;
+
+    const packageDir = resolve(root, "node_modules", packageName);
+    if (!existsSync(packageDir)) continue;
+
+    packages.add(packageName);
+
+    const packageJson = getInstalledPackageJson(packageName);
+    const dependencies = {
+      ...(packageJson.dependencies ?? {}),
+      ...(packageJson.peerDependencies ?? {}),
+    };
+
+    for (const dependencyName of Object.keys(dependencies)) {
+      queue.push(dependencyName);
+    }
+  }
+
+  return [...packages];
+}
+
+function copyPackageToBundle(packageName, serverDir) {
+  const sourceDir = resolve(root, "node_modules", packageName);
+  const destinationDir = resolve(serverDir, "node_modules", packageName);
+
+  mkdirSync(dirname(destinationDir), { recursive: true });
+  cpSync(sourceDir, destinationDir, { recursive: true });
+}
+
 console.log("▶ Building TanStack Start (aws-lambda target) for AWS Lambda…");
 execSync("bunx vite build --config vite.config.aws.ts", {
   stdio: "inherit",
@@ -79,13 +119,12 @@ if (existsSync(serverJs)) {
     .filter(Boolean))];
 
   if (runtimePackages.length > 0) {
-    const runtimeDependencies = Object.fromEntries(
-      runtimePackages.map((packageName) => [packageName, getInstalledPackageVersion(packageName)]),
-    );
+    const bundledRuntimePackages = collectRuntimePackages(runtimePackages);
 
     console.log("▶ Installing Lambda runtime dependencies:");
-    for (const packageName of runtimePackages) {
-      console.log(`  - ${packageName}@${runtimeDependencies[packageName]}`);
+    for (const packageName of bundledRuntimePackages) {
+      console.log(`  - ${packageName}@${getInstalledPackageVersion(packageName)}`);
+      copyPackageToBundle(packageName, serverDir);
     }
 
     writeFileSync(
@@ -93,15 +132,11 @@ if (existsSync(serverJs)) {
       JSON.stringify({
         type: "module",
         private: true,
-        dependencies: runtimeDependencies,
+        dependencies: Object.fromEntries(
+          bundledRuntimePackages.map((packageName) => [packageName, getInstalledPackageVersion(packageName)]),
+        ),
       }, null, 2),
     );
-
-    execSync("bun install --production", {
-      stdio: "inherit",
-      cwd: serverDir,
-      env: { ...process.env, NODE_ENV: "production" },
-    });
   }
 } else {
   console.warn("⚠ .output/server/server.js not found — check build output above");
