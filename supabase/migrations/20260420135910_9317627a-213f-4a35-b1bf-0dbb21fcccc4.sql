@@ -1,0 +1,1 @@
+UPDATE public.products SET image = 'https://yadavaditya-image-gallery.s3.ap-south-1.amazonaws.com/images/1776693270779-lg.jpg' WHERE id = 'P001';
