@@ -3,14 +3,14 @@ import { Layout } from "@/components/Layout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TECHNICIANS } from "@/data/catalog";
+import { supabase } from "@/integrations/supabase/client";
 import { Star, ShieldCheck, Award, Clock, ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/technician/$id")({
-  loader: ({ params }) => {
-    const tech = TECHNICIANS.find(t => t.id === params.id);
-    if (!tech) throw notFound();
-    return { tech };
+  loader: async ({ params }) => {
+    const { data, error } = await supabase.from("technicians").select("*").eq("id", params.id).maybeSingle();
+    if (error || !data) throw notFound();
+    return { tech: data };
   },
   head: ({ loaderData }) => ({ meta: [{ title: `${loaderData?.tech.name} — ${loaderData?.tech.specialization} | Gayatri` }] }),
   component: TechPage,
@@ -18,8 +18,11 @@ export const Route = createFileRoute("/technician/$id")({
 });
 
 function TechPage() {
-  const { tech } = Route.useLoaderData();
-  const total = tech.ratingBreakdown.reduce((s: number, n: number) => s + n, 0);
+  const { tech } = Route.useLoaderData() as { tech: any };
+  const breakdown: number[] = Array.isArray(tech.rating_breakdown) ? tech.rating_breakdown : [0,0,0,0,0];
+  const certifications: string[] = Array.isArray(tech.certifications) ? tech.certifications : [];
+  const reviews: any[] = Array.isArray(tech.reviews) ? tech.reviews : [];
+  const total = breakdown.reduce((s: number, n: number) => s + n, 0);
   return (
     <Layout>
       <div className="container mx-auto px-4 py-4">
@@ -50,7 +53,7 @@ function TechPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-3">
             <Card className="p-4 text-center"><Award className="h-6 w-6 text-primary mx-auto mb-1" /><div className="text-2xl font-bold">{tech.experience}+</div><div className="text-xs text-muted-foreground">Years exp.</div></Card>
-            <Card className="p-4 text-center"><Clock className="h-6 w-6 text-primary mx-auto mb-1" /><div className="text-2xl font-bold">{tech.onTime}%</div><div className="text-xs text-muted-foreground">On-time arrival</div></Card>
+            <Card className="p-4 text-center"><Clock className="h-6 w-6 text-primary mx-auto mb-1" /><div className="text-2xl font-bold">{tech.on_time}%</div><div className="text-xs text-muted-foreground">On-time arrival</div></Card>
             <Card className="p-4 text-center"><ShieldCheck className="h-6 w-6 text-primary mx-auto mb-1" /><div className="text-2xl font-bold">{tech.jobs}</div><div className="text-xs text-muted-foreground">Jobs done</div></Card>
           </div>
 
@@ -58,13 +61,13 @@ function TechPage() {
             <h3 className="font-semibold mb-2">Specializations</h3>
             <p className="text-sm text-muted-foreground">{tech.specialization}</p>
             <h3 className="font-semibold mt-4 mb-2">Certifications</h3>
-            <div className="flex gap-2 flex-wrap">{tech.certifications.map((c:string)=> <Badge key={c} variant="outline">{c}</Badge>)}</div>
+            <div className="flex gap-2 flex-wrap">{certifications.map((c:string)=> <Badge key={c} variant="outline">{c}</Badge>)}</div>
           </Card>
 
           <Card className="p-5">
             <h3 className="font-semibold mb-3">Rating breakdown</h3>
             {[5,4,3,2,1].map((star, i) => {
-              const n = tech.ratingBreakdown[i];
+              const n = breakdown[i] ?? 0;
               const pct = total ? (n/total)*100 : 0;
               return (
                 <div key={star} className="flex items-center gap-3 text-sm mb-1.5">
@@ -81,7 +84,7 @@ function TechPage() {
           <Card className="p-5">
             <h3 className="font-semibold mb-3">Customer reviews</h3>
             <div className="space-y-4">
-              {tech.reviews.map((r: any, i: number) => (
+              {reviews.map((r: any, i: number) => (
                 <div key={i} className="border-b last:border-0 pb-3 last:pb-0">
                   <div className="flex items-center justify-between"><span className="font-medium text-sm">{r.name}</span>
                     <div className="flex">{Array.from({length:r.rating}).map((_,j)=><Star key={j} className="h-3.5 w-3.5 fill-primary text-primary" />)}</div>

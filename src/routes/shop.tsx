@@ -4,9 +4,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { PRODUCTS, BRANDS, CATEGORIES } from "@/data/catalog";
+import { BRANDS, CATEGORIES } from "@/data/catalog";
+import { supabase } from "@/integrations/supabase/client";
 import { addToCart, fmt } from "@/lib/cart";
 import { Heart, Star, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -19,22 +19,28 @@ export const Route = createFileRoute("/shop")({
       { name: "description", content: "Buy AC, Refrigerator, Washing Machine, TV and more. New and certified refurbished electronics with EMI options and free installation." },
     ],
   }),
+  loader: async () => {
+    const { data, error } = await supabase.from("products").select("*").eq("active", true).order("name");
+    if (error) throw error;
+    return { products: data ?? [] };
+  },
   component: ShopPage,
 });
 
 function ShopPage() {
+  const { products } = Route.useLoaderData();
   const [cats, setCats] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
   const [conditions, setConditions] = useState<string[]>([]);
   const [price, setPrice] = useState<[number, number]>([0, 50000]);
   const [showFilters, setShowFilters] = useState(false);
 
-  const filtered = useMemo(() => PRODUCTS.filter(p =>
+  const filtered = useMemo(() => products.filter((p: any) =>
     (cats.length === 0 || cats.includes(p.category)) &&
     (brands.length === 0 || brands.includes(p.brand)) &&
     (conditions.length === 0 || conditions.includes(p.condition)) &&
     p.price >= price[0] && p.price <= price[1]
-  ), [cats, brands, conditions, price]);
+  ), [products, cats, brands, conditions, price]);
 
   const toggle = (arr: string[], setArr: (v: string[]) => void, val: string) =>
     setArr(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
@@ -104,7 +110,9 @@ function ShopPage() {
           {showFilters && <Card className="p-5 mb-4 lg:hidden"><Filters /></Card>}
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(p => (
+            {filtered.map((p: any) => {
+              const specs = Array.isArray(p.specs) ? p.specs : [];
+              return (
               <Card key={p.id} className="hover-lift overflow-hidden flex flex-col group">
                 <div className="relative aspect-square bg-muted">
                   <Link to="/shop/$id" params={{id:p.id}}>
@@ -123,7 +131,7 @@ function ShopPage() {
                     <Badge variant="secondary" className={p.condition==="New" ? "bg-success/10 text-success border-success/30" : "bg-accent text-accent-foreground"}>{p.condition}</Badge>
                   </div>
                   <Link to="/shop/$id" params={{id:p.id}} className="font-medium text-sm line-clamp-2 hover:text-primary">{p.name}</Link>
-                  <div className="text-xs text-muted-foreground mt-1">{p.specs.slice(0,2).map(s=>s.value).join(" · ")}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{specs.slice(0,2).map((s: any)=>s.value).join(" · ")}</div>
                   <div className="mt-2 flex items-center gap-1">
                     <Star className="h-3.5 w-3.5 fill-primary text-primary" />
                     <span className="text-xs font-medium">{p.rating}</span>
@@ -140,7 +148,7 @@ function ShopPage() {
                   </div>
                 </div>
               </Card>
-            ))}
+            );})}
           </div>
           {filtered.length === 0 && (
             <div className="text-center py-20 text-muted-foreground">No products match your filters.</div>

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { SERVICES, PRODUCTS } from "@/data/catalog";
+import { supabase } from "@/integrations/supabase/client";
 
 const GOOGLE_REVIEWS_URL = "https://share.google/JVEQN94vOLOkgY9aZ";
 
@@ -27,6 +27,13 @@ export const Route = createFileRoute("/")({
       { name: "description", content: "Same-day appliance repair and curated new + refurbished electronics. AC, Fridge, Washing Machine, RO, Geyser, TV. 90-day warranty." },
     ],
   }),
+  loader: async () => {
+    const [servicesRes, productsRes] = await Promise.all([
+      supabase.from("services").select("*").eq("active", true).order("name").limit(10),
+      supabase.from("products").select("*").eq("active", true).order("name").limit(4),
+    ]);
+    return { services: servicesRes.data ?? [], products: productsRes.data ?? [] };
+  },
   component: HomePage,
 });
 
@@ -36,12 +43,10 @@ const ICONS: Record<string, React.ComponentType<{className?: string}>> = {
 };
 
 function HomePage() {
+  const { services, products } = Route.useLoaderData();
   const [q, setQ] = useState("");
   const navigate = useNavigate();
   const onSearch = (e: React.FormEvent) => { e.preventDefault(); if (q.trim()) navigate({ to: "/search", search: { q } }); };
-
-  const quickServices = SERVICES.slice(0, 10);
-  const featured = PRODUCTS.slice(0, 4);
 
   return (
     <Layout>
@@ -79,7 +84,7 @@ function HomePage() {
           <p className="text-muted-foreground mt-2">Tap a service to book in 60 seconds</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {quickServices.map(s => {
+          {services.map((s: any) => {
             const Icon = ICONS[s.icon] ?? Wrench;
             return (
               <Link key={s.slug} to="/services/$slug" params={{slug: s.slug}}>
@@ -88,7 +93,7 @@ function HomePage() {
                     <Icon className="h-7 w-7 text-primary-foreground" />
                   </div>
                   <div className="font-medium text-sm">{s.name}</div>
-                  <div className="text-xs text-muted-foreground mt-1">From {fmt(s.startingAt)}</div>
+                  <div className="text-xs text-muted-foreground mt-1">From {fmt(s.starting_at)}</div>
                 </Card>
               </Link>
             );
@@ -152,7 +157,7 @@ function HomePage() {
             <Link to="/shop" className="text-primary text-sm font-medium hidden md:flex items-center">View all <ArrowRight className="h-4 w-4 ml-1" /></Link>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {featured.map(p => (
+            {products.map((p: any) => (
               <Card key={p.id} className="hover-lift overflow-hidden flex flex-col">
                 <Link to="/shop/$id" params={{id: p.id}} className="block aspect-square bg-muted">
                   <img src={p.image} alt={p.name} className="w-full h-full object-cover" loading="lazy" />

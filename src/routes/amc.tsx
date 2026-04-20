@@ -1,16 +1,21 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { AMC_PLANS } from "@/data/catalog";
+import { supabase } from "@/integrations/supabase/client";
 import { fmt } from "@/lib/cart";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/amc")({
   head: () => ({ meta: [{ title: "AMC Plans — Annual Maintenance Contracts | Gayatri" }, { name: "description", content: "Priority booking, free spare parts, unlimited services. Pick from Silver, Gold or Platinum AMC plans." }] }),
+  loader: async () => {
+    const { data, error } = await supabase.from("amc_plans").select("*").eq("active", true).order("sort_order");
+    if (error) throw error;
+    return { plans: data ?? [] };
+  },
   component: AmcPage,
 });
 
@@ -22,6 +27,7 @@ const FAQ = [
 ];
 
 function AmcPage() {
+  const { plans } = Route.useLoaderData();
   return (
     <Layout>
       <section className="bg-gradient-ink text-secondary-foreground py-12">
@@ -34,7 +40,9 @@ function AmcPage() {
 
       <div className="container mx-auto px-4 py-12">
         <div className="grid md:grid-cols-3 gap-6">
-          {AMC_PLANS.map(plan => (
+          {plans.map((plan: any) => {
+            const benefits: string[] = Array.isArray(plan.benefits) ? plan.benefits : [];
+            return (
             <Card key={plan.id} className={`p-6 flex flex-col relative ${plan.highlight ? "border-2 border-primary shadow-elevated" : ""}`}>
               {plan.highlight && <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-gold text-primary-foreground">Most Popular</Badge>}
               <h3 className="text-xl font-bold">{plan.name}</h3>
@@ -48,11 +56,11 @@ function AmcPage() {
                 <div className="bg-muted rounded p-2 text-center"><div className="font-semibold">{plan.services}</div></div>
               </div>
               <ul className="mt-5 space-y-2 text-sm flex-1">
-                {plan.benefits.map((b, i) => <li key={i} className="flex gap-2"><CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />{b}</li>)}
+                {benefits.map((b, i) => <li key={i} className="flex gap-2"><CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />{b}</li>)}
               </ul>
               <Button className="mt-6 w-full bg-gradient-gold text-primary-foreground" onClick={() => toast.success(`${plan.name} plan added — proceed to checkout`)}>Buy {plan.name}</Button>
             </Card>
-          ))}
+          );})}
         </div>
 
         <div className="mt-16 grid md:grid-cols-4 gap-4">

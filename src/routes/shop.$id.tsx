@@ -3,17 +3,18 @@ import { Layout } from "@/components/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PRODUCTS, type Product } from "@/data/catalog";
+import { supabase } from "@/integrations/supabase/client";
 import { addToCart, fmt } from "@/lib/cart";
 import { Star, ShieldCheck, Truck, Wrench, ChevronRight, Heart, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/$id")({
-  loader: ({ params }) => {
-    const product = PRODUCTS.find(p => p.id === params.id);
-    if (!product) throw notFound();
-    return { product: product as Product };
+  loader: async ({ params }) => {
+    const { data: product, error } = await supabase.from("products").select("*").eq("id", params.id).maybeSingle();
+    if (error || !product) throw notFound();
+    const { data: related } = await supabase.from("products").select("*").eq("category", product.category).eq("active", true).neq("id", product.id).limit(4);
+    return { product, related: related ?? [] };
   },
   head: ({ loaderData }) => ({
     meta: [
@@ -27,11 +28,12 @@ export const Route = createFileRoute("/shop/$id")({
 });
 
 function ProductDetailPage() {
-  const { product } = Route.useLoaderData() as { product: Product };
+  const { product, related } = Route.useLoaderData() as { product: any; related: any[] };
   const navigate = useNavigate();
   const [emiMonths, setEmiMonths] = useState(12);
   const emi = Math.round(product.price / emiMonths);
-  const related = PRODUCTS.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4);
+  const specs: any[] = Array.isArray(product.specs) ? product.specs : [];
+  const box: string[] = Array.isArray(product.box) ? product.box : [];
 
   const buyNow = () => {
     addToCart({id:product.id,name:product.name,brand:product.brand,price:product.price,mrp:product.mrp,image:product.image});
@@ -91,7 +93,7 @@ function ProductDetailPage() {
             {[
               {icon: Truck, t: "Free delivery", s: "in 3-5 days"},
               {icon: Wrench, t: "Free install", s: "by certified tech"},
-              {icon: ShieldCheck, t: product.warranty.split("+")[0], s: product.condition === "Refurbished" ? "Refurb warranty" : "Brand warranty"},
+              {icon: ShieldCheck, t: (product.warranty || "").split("+")[0] || "Warranty", s: product.condition === "Refurbished" ? "Refurb warranty" : "Brand warranty"},
             ].map((b,i)=>(
               <Card key={i} className="p-3 text-center"><b.icon className="h-5 w-5 text-primary mx-auto mb-1" /><div className="font-medium">{b.t}</div><div className="text-muted-foreground">{b.s}</div></Card>
             ))}
@@ -101,7 +103,7 @@ function ProductDetailPage() {
             <h3 className="font-semibold mb-3">Specifications</h3>
             <table className="w-full text-sm">
               <tbody>
-                {product.specs.map((s,i)=>(
+                {specs.map((s,i)=>(
                   <tr key={i} className="border-b last:border-0">
                     <td className="py-2 text-muted-foreground w-1/3">{s.label}</td>
                     <td className="py-2 font-medium">{s.value}</td>
@@ -135,7 +137,7 @@ function ProductDetailPage() {
           <p className="text-sm text-muted-foreground">{product.description}</p>
           <h4 className="font-semibold mt-5 mb-2 text-sm">What's in the box</h4>
           <ul className="grid sm:grid-cols-2 gap-1.5 text-sm">
-            {product.box.map((b,i)=> <li key={i} className="flex gap-2"><CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />{b}</li>)}
+            {box.map((b,i)=> <li key={i} className="flex gap-2"><CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" />{b}</li>)}
           </ul>
         </Card>
       </div>
@@ -144,7 +146,7 @@ function ProductDetailPage() {
         <div className="container mx-auto px-4 py-8">
           <h3 className="font-semibold text-xl mb-4">Related products</h3>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {related.map(p => (
+            {related.map((p: any) => (
               <Link key={p.id} to="/shop/$id" params={{id:p.id}}>
                 <Card className="hover-lift overflow-hidden">
                   <img src={p.image} alt={p.name} className="aspect-square w-full object-cover" />
