@@ -16,11 +16,25 @@ execSync("bunx vite build --config vite.config.aws.ts", {
   env: { ...process.env, NODE_ENV: "production" },
 });
 
+// Debug: show what was actually produced
+import { readdirSync } from "node:fs";
+console.log("▶ Build output contents:");
+try {
+  for (const entry of readdirSync(resolve(root, ".output"))) {
+    console.log("  .output/" + entry);
+  }
+} catch {
+  console.warn("  (could not read .output dir)");
+}
+
 // Expected layout after build:
 //   .output/server/index.mjs   ← Node server entry produced by tanstack-start
-//   .output/public/            ← static assets
+//   .output/public/            ← static assets (may also be .output/client/)
 const serverDir = resolve(root, ".output/server");
-const publicDir = resolve(root, ".output/public");
+// TanStack Start may emit static assets to either .output/public or .output/client
+const publicDir = existsSync(resolve(root, ".output/public"))
+  ? resolve(root, ".output/public")
+  : resolve(root, ".output/client");
 
 if (!existsSync(serverDir)) {
   console.error("✗ .output/server not found. Build did not produce a Node server bundle.");
@@ -47,8 +61,10 @@ console.log(`✓ Lambda zip: ${zipPath}`);
 
 if (existsSync(publicDir)) {
   console.log(`✓ Static assets ready at: ${publicDir}`);
+  // Write a marker file so the workflow knows where assets are
+  writeFileSync(resolve(root, ".output/static-assets-dir.txt"), publicDir);
 } else {
-  console.warn("⚠ .output/public not found — no static assets to upload.");
+  console.warn("⚠ No static assets directory found — skipping asset marker.");
 }
 
 console.log("✅ AWS build complete.");
