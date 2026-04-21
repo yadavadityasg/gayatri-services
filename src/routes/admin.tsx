@@ -196,8 +196,8 @@ function JsonField({ label, value, onChange, placeholder }: { label: string; val
 
 // ----------------- PRODUCTS -----------------
 function ProductsAdmin() {
-  const { rows, loading, refresh } = useTable<Record<string, unknown>>("products", "name");
-  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const { rows, loading, refresh } = useTable("products", "name");
+  const [editing, setEditing] = useState<Row | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const blank = () => ({ id: "", name: "", brand: "", category: "ac", condition: "New", price: 0, mrp: 0, rating: 4.5, reviews: 0, image: "", capacity: "", energy_rating: null, description: "", specs: [], box: [], warranty: "", active: true });
@@ -269,8 +269,8 @@ function ProductsAdmin() {
 
 // ----------------- SERVICES -----------------
 function ServicesAdmin() {
-  const { rows, loading, refresh } = useTable<Record<string, unknown>>("services", "name");
-  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const { rows, loading, refresh } = useTable("services", "name");
+  const [editing, setEditing] = useState<Row | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const blank = () => ({ slug: "", category: "ac", category_label: "AC", name: "", short: "", starting_at: 499, duration: "60 min", icon: "wrench", includes: [], problems: [], active: true });
 
@@ -339,8 +339,8 @@ function ServicesAdmin() {
 
 // ----------------- AMC -----------------
 function AmcAdmin() {
-  const { rows, loading, refresh } = useTable<Record<string, unknown>>("amc_plans", "sort_order");
-  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const { rows, loading, refresh } = useTable("amc_plans", "sort_order");
+  const [editing, setEditing] = useState<Row | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const blank = () => ({ id: "", name: "", price: 1499, period: "year", appliances: "", services: "", tagline: "", highlight: false, benefits: [], sort_order: 0, active: true });
 
@@ -408,8 +408,8 @@ function AmcAdmin() {
 
 // ----------------- TECHNICIANS -----------------
 function TechniciansAdmin() {
-  const { rows, loading, refresh } = useTable<Record<string, unknown>>("technicians", "name");
-  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const { rows, loading, refresh } = useTable("technicians", "name");
+  const [editing, setEditing] = useState<Row | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const blank = () => ({ id: "", name: "", specialization: "", experience: 0, rating: 4.5, jobs: 0, on_time: 95, photo: "", certifications: [], rating_breakdown: [0,0,0,0,0], reviews: [], active: true });
 
