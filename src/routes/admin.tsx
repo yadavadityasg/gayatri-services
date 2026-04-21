@@ -129,14 +129,14 @@ function useTable(table: TableName, orderBy = "name") {
   const refresh = async () => {
     setLoading(true);
     const { data, error } = await dbFrom(table).select("*").order(orderBy as string);
-    if (error) toast.error(error.message); else setRows((data as unknown as T[]) || []);
+    if (error) toast.error(error.message); else setRows((data as Row[]) || []);
     setLoading(false);
   };
   useEffect(() => { refresh(); }, []);
   return { rows, loading, refresh };
 }
 
-async function saveRow(table: TableName, row: Record<string, unknown>, isNew: boolean, pk: string) {
+async function saveRow(table: TableName, row: Row, isNew: boolean, pk: string) {
   if (isNew) {
     const { error } = await dbFrom(table).insert(row as never);
     if (error) { toast.error(error.message); return false; }
