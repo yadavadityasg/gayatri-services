@@ -120,8 +120,10 @@ function AdminPage() {
 }
 
 // ----------------- Generic helpers -----------------
-function useTable<T extends Record<string, unknown>>(table: TableName, orderBy = "name") {
-  const [rows, setRows] = useState<T[]>([]);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = any;
+function useTable(table: TableName, orderBy = "name") {
+  const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
