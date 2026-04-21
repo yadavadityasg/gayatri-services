@@ -132,14 +132,7 @@ for (const file of walkJsFiles(serverDir)) {
 }
 console.log(`▶ Scanned ${scannedFileCount} server bundle file(s); found ${runtimePackagesSet.size} bare-package import(s).`);
 
-// Debug: show server.js exports if present
-const serverJs = resolve(serverDir, "server.js");
-if (existsSync(serverJs)) {
-  const content = readFileSync(serverJs, "utf8");
-  const allLines = content.split("\n");
-  console.log("▶ Last 15 lines of .output/server/server.js:");
-  console.log(allLines.slice(-15).join("\n") + "\n");
-}
+
 
 const runtimePackages = [...runtimePackagesSet];
 if (runtimePackages.length > 0) {

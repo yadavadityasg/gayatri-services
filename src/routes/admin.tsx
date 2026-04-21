@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { useIsAdmin } from "@/lib/admin";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,10 +10,18 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Loader2, LogOut, Pencil, Plus, Trash2, ShieldAlert } from "lucide-react";
+
+type TableName = keyof Database["public"]["Tables"];
+
+// Type-safe Supabase table helper
+function dbFrom(table: TableName) {
+  return supabase.from(table);
+}
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin Dashboard | Gayatri" }, { name: "robots", content: "noindex,nofollow" }] }),
@@ -20,49 +29,18 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
-  const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError(""); setInfo("");
-
-    if (mode === "signup") {
-      const { data, error: signErr } = await supabase.auth.signUp({
-        email, password,
-        options: { emailRedirectTo: `${window.location.origin}/admin` },
-      });
-      if (signErr) {
-        setError(signErr.message);
-        setLoading(false); return;
-      }
-      // If session is returned, auto-confirm is on — proceed with role check
-      if (data.session && data.user) {
-        const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle();
-        if (!roleRow) {
-          await supabase.auth.signOut();
-          setError("Account created, but this email is not configured as admin.");
-          setLoading(false); return;
-        }
-        toast.success("Admin account created!");
-        onSuccess();
-        return;
-      }
-      // Otherwise email confirmation required
-      setInfo("Account created. Check your email to confirm, then sign in.");
-      setMode("login");
-      setLoading(false);
-      return;
-    }
-
+    setLoading(true); setError("");
     const { data, error: signErr } = await supabase.auth.signInWithPassword({ email, password });
     if (signErr || !data.user) {
       const msg = signErr?.message || "Login failed";
-      setError(msg.includes("Invalid login") ? "Invalid email or password. If you haven't created an admin account yet, switch to Sign up." : msg);
+      setError(msg.includes("Invalid login") ? "Invalid email or password." : msg);
       setLoading(false); return;
     }
     const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle();
@@ -82,25 +60,13 @@ function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
           <h1 className="text-2xl font-bold">Admin Access</h1>
           <p className="text-sm text-muted-foreground">Restricted area — admins only</p>
         </div>
-        <Tabs value={mode} onValueChange={v => { setMode(v as any); setError(""); setInfo(""); }}>
-          <TabsList className="grid grid-cols-2 w-full mb-4">
-            <TabsTrigger value="login">Sign in</TabsTrigger>
-            <TabsTrigger value="signup">Sign up</TabsTrigger>
-          </TabsList>
-        </Tabs>
         <form onSubmit={submit} className="space-y-4">
           <div><Label>Email</Label><Input type="email" required value={email} onChange={e => setEmail(e.target.value)} /></div>
-          <div><Label>Password</Label><Input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 6 characters" /></div>
+          <div><Label>Password</Label><Input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)} /></div>
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {info && <p className="text-sm text-primary">{info}</p>}
           <Button type="submit" className="w-full bg-gradient-gold text-primary-foreground" disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (mode === "signup" ? "Create admin account" : "Sign In")}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
           </Button>
-          {mode === "signup" && (
-            <p className="text-xs text-center text-muted-foreground">
-              Only the configured admin email will receive admin privileges.
-            </p>
-          )}
           <p className="text-xs text-center text-muted-foreground">
             <Link to="/" className="underline">← Back to site</Link>
           </p>
@@ -154,36 +120,53 @@ function AdminPage() {
 }
 
 // ----------------- Generic helpers -----------------
-function useTable<T extends Record<string, any>>(table: string, orderBy = "name") {
+function useTable<T extends Record<string, unknown>>(table: TableName, orderBy = "name") {
   const [rows, setRows] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
     setLoading(true);
-    const { data, error } = await (supabase as any).from(table).select("*").order(orderBy);
-    if (error) toast.error(error.message); else setRows((data as T[]) || []);
+    const { data, error } = await dbFrom(table).select("*").order(orderBy as string);
+    if (error) toast.error(error.message); else setRows((data as unknown as T[]) || []);
     setLoading(false);
   };
   useEffect(() => { refresh(); }, []);
   return { rows, loading, refresh };
 }
 
-async function saveRow(table: string, row: any, isNew: boolean, pk: string) {
+async function saveRow(table: TableName, row: Record<string, unknown>, isNew: boolean, pk: string) {
   if (isNew) {
-    const { error } = await (supabase as any).from(table).insert(row);
+    const { error } = await dbFrom(table).insert(row as never);
     if (error) { toast.error(error.message); return false; }
   } else {
     const { [pk]: id, ...rest } = row;
-    const { error } = await (supabase as any).from(table).update(rest).eq(pk, id);
+    const { error } = await dbFrom(table).update(rest as never).eq(pk, id as string);
     if (error) { toast.error(error.message); return false; }
   }
   toast.success("Saved");
   return true;
 }
 
-async function deleteRow(table: string, pk: string, id: string) {
-  if (!confirm("Delete this item?")) return false;
-  const { error } = await (supabase as any).from(table).delete().eq(pk, id);
+type DeleteDialogProps = { open: boolean; onConfirm: () => void; onCancel: () => void };
+function DeleteDialog({ open, onConfirm, onCancel }: DeleteDialogProps) {
+  return (
+    <AlertDialog open={open}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this item?</AlertDialogTitle>
+          <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+async function deleteRow(table: TableName, pk: string, id: string) {
+  const { error } = await dbFrom(table).delete().eq(pk, id);
   if (error) { toast.error(error.message); return false; }
   toast.success("Deleted");
   return true;
@@ -211,8 +194,9 @@ function JsonField({ label, value, onChange, placeholder }: { label: string; val
 
 // ----------------- PRODUCTS -----------------
 function ProductsAdmin() {
-  const { rows, loading, refresh } = useTable<any>("products", "name");
-  const [editing, setEditing] = useState<any | null>(null);
+  const { rows, loading, refresh } = useTable<Record<string, unknown>>("products", "name");
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const blank = () => ({ id: "", name: "", brand: "", category: "ac", condition: "New", price: 0, mrp: 0, rating: 4.5, reviews: 0, image: "", capacity: "", energy_rating: null, description: "", specs: [], box: [], warranty: "", active: true });
 
@@ -236,7 +220,7 @@ function ProductsAdmin() {
                 <TableCell>{r.active ? "✓" : "—"}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => setEditing({ ...r })}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" onClick={async () => { if (await deleteRow("products", "id", r.id)) refresh(); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(r.id as string)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -283,8 +267,9 @@ function ProductsAdmin() {
 
 // ----------------- SERVICES -----------------
 function ServicesAdmin() {
-  const { rows, loading, refresh } = useTable<any>("services", "name");
-  const [editing, setEditing] = useState<any | null>(null);
+  const { rows, loading, refresh } = useTable<Record<string, unknown>>("services", "name");
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const blank = () => ({ slug: "", category: "ac", category_label: "AC", name: "", short: "", starting_at: 499, duration: "60 min", icon: "wrench", includes: [], problems: [], active: true });
 
   return (
@@ -306,7 +291,7 @@ function ServicesAdmin() {
                 <TableCell>{r.active ? "✓" : "—"}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => setEditing({ ...r })}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" onClick={async () => { if (await deleteRow("services", "slug", r.slug)) refresh(); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(r.slug as string)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -341,14 +326,20 @@ function ServicesAdmin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DeleteDialog
+        open={!!deleteTarget}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={async () => { if (deleteTarget && await deleteRow("services", "slug", deleteTarget)) { setDeleteTarget(null); refresh(); } else setDeleteTarget(null); }}
+      />
     </Card>
   );
 }
 
 // ----------------- AMC -----------------
 function AmcAdmin() {
-  const { rows, loading, refresh } = useTable<any>("amc_plans", "sort_order");
-  const [editing, setEditing] = useState<any | null>(null);
+  const { rows, loading, refresh } = useTable<Record<string, unknown>>("amc_plans", "sort_order");
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const blank = () => ({ id: "", name: "", price: 1499, period: "year", appliances: "", services: "", tagline: "", highlight: false, benefits: [], sort_order: 0, active: true });
 
   return (
@@ -369,7 +360,7 @@ function AmcAdmin() {
                 <TableCell>{r.highlight ? "★" : "—"}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => setEditing({ ...r })}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" onClick={async () => { if (await deleteRow("amc_plans", "id", r.id)) refresh(); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(r.id as string)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -404,14 +395,20 @@ function AmcAdmin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DeleteDialog
+        open={!!deleteTarget}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={async () => { if (deleteTarget && await deleteRow("amc_plans", "id", deleteTarget)) { setDeleteTarget(null); refresh(); } else setDeleteTarget(null); }}
+      />
     </Card>
   );
 }
 
 // ----------------- TECHNICIANS -----------------
 function TechniciansAdmin() {
-  const { rows, loading, refresh } = useTable<any>("technicians", "name");
-  const [editing, setEditing] = useState<any | null>(null);
+  const { rows, loading, refresh } = useTable<Record<string, unknown>>("technicians", "name");
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const blank = () => ({ id: "", name: "", specialization: "", experience: 0, rating: 4.5, jobs: 0, on_time: 95, photo: "", certifications: [], rating_breakdown: [0,0,0,0,0], reviews: [], active: true });
 
   return (
@@ -433,7 +430,7 @@ function TechniciansAdmin() {
                 <TableCell>{r.jobs}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => setEditing({ ...r })}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" onClick={async () => { if (await deleteRow("technicians", "id", r.id)) refresh(); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(r.id as string)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -469,6 +466,11 @@ function TechniciansAdmin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DeleteDialog
+        open={!!deleteTarget}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={async () => { if (deleteTarget && await deleteRow("technicians", "id", deleteTarget)) { setDeleteTarget(null); refresh(); } else setDeleteTarget(null); }}
+      />
     </Card>
   );
 }

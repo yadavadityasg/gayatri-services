@@ -55,7 +55,22 @@ function BookingPage() {
 
   const submit = async () => {
     if (!user) { toast.error("Please login to confirm booking"); navigate({ to: "/login", search: { redirect: "/booking" } }); return; }
-    if (!data.brand || !data.problem || !data.address || !data.pincode) { toast.error("Please fill all required fields"); return; }
+
+    // Validate inputs
+    const validation = z.object({
+      brand: z.string().min(1, "Brand is required"),
+      problem: z.string().min(1, "Problem is required"),
+      address: z.string().min(5, "Address is required"),
+      pincode: z.string().regex(/^\d{6}$/, "Pincode must be exactly 6 digits"),
+      date: z.string().refine(d => new Date(d) >= new Date(new Date().toISOString().slice(0,10)), "Date must be today or in the future"),
+      description: z.string().max(500, "Description must be under 500 characters").optional(),
+    }).safeParse(data);
+
+    if (!validation.success) {
+      toast.error(validation.error.errors[0].message);
+      return;
+    }
+
     setSubmitting(true);
     const { data: row, error } = await supabase.from("bookings").insert({
       user_id: user.id,
@@ -70,9 +85,7 @@ function BookingPage() {
       floor_landmark: data.floor,
       city: data.city,
       pincode: data.pincode,
-      visit_charge: 299,
       status: "booked",
-      technician_name: "Rajesh Kumar",
     }).select().single();
     setSubmitting(false);
     if (error) { toast.error(error.message); return; }

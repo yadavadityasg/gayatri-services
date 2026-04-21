@@ -30,8 +30,8 @@ function DashboardPage() {
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     Promise.all([
-      supabase.from("bookings").select("*").order("created_at", { ascending: false }),
-      supabase.from("orders").select("*").order("created_at", { ascending: false }),
+      supabase.from("bookings").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("orders").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
     ]).then(([b, o]) => {
       setBookings((b.data ?? []) as Booking[]);
       setOrders((o.data ?? []) as Order[]);
@@ -62,8 +62,8 @@ function DashboardPage() {
 
       <div className="container mx-auto px-4 py-8">
         <div className="grid md:grid-cols-4 gap-3 mb-6">
-          <StatCard icon={Wallet} label="Wallet balance" value="₹250" />
-          <StatCard icon={Gift} label="Cashback" value="₹120" />
+          <StatCard icon={Wallet} label="Wallet balance" value="₹0" subtitle="Coming soon" />
+          <StatCard icon={Gift} label="Cashback earned" value="₹0" subtitle="Coming soon" />
           <StatCard icon={Calendar} label="Bookings" value={String(bookings.length)} />
           <StatCard icon={Package} label="Orders" value={String(orders.length)} />
         </div>
@@ -147,11 +147,15 @@ function DashboardPage() {
   );
 }
 
-function StatCard({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+function StatCard({ icon: Icon, label, value, subtitle }: { icon: React.ElementType; label: string; value: string; subtitle?: string }) {
   return (
     <Card className="p-4 flex items-center gap-3">
       <div className="h-10 w-10 rounded-full bg-gradient-gold flex items-center justify-center"><Icon className="h-5 w-5 text-primary-foreground" /></div>
-      <div><div className="text-xs text-muted-foreground">{label}</div><div className="font-bold text-lg">{value}</div></div>
+      <div>
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="font-bold text-lg">{value}</div>
+        {subtitle && <div className="text-[10px] text-muted-foreground">{subtitle}</div>}
+      </div>
     </Card>
   );
 }
