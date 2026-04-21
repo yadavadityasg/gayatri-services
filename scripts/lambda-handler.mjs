@@ -10,8 +10,8 @@ const SECURITY_HEADERS = {
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 };
 
-export async function handler(event: unknown, context: unknown) {
-  const response = await (appHandler as Function)(event, context);
+export async function handler(event, context) {
+  const response = await appHandler(event, context);
   if (response && typeof response === "object" && "headers" in response) {
     response.headers = { ...(response.headers ?? {}), ...SECURITY_HEADERS };
   }
