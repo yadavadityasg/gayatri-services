@@ -1,17 +1,21 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { fmt } from "@/lib/cart";
-import { Calendar, Package, Wrench, ShieldCheck, MapPin, Wallet, Gift, Star } from "lucide-react";
-import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Calendar, Package, Wrench, ShieldCheck, MapPin, Wallet, Gift, Star, LogOut, User as UserIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 interface Booking { id: string; service_name: string; brand: string | null; problem: string | null; preferred_date: string; time_slot: string; address_line: string; status: string; technician_name: string | null; visit_charge: number; created_at: string; }
 interface Order { id: string; items: any; total: number; status: string; created_at: string; }
+interface Profile { id: string; full_name: string | null; phone: string | null; }
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "My Account | Gayatri" }] }),
@@ -20,12 +24,25 @@ export const Route = createFileRoute("/dashboard")({
 
 const STATUS_STEPS = ["booked", "assigned", "on_the_way", "arrived", "in_progress", "completed"];
 const STATUS_LABELS: Record<string,string> = { booked:"Booked", assigned:"Tech Assigned", on_the_way:"On the Way", arrived:"Arrived", in_progress:"In Progress", completed:"Completed" };
+const VALID_TABS = ["bookings", "orders", "appliances", "amc", "profile"] as const;
+type TabValue = typeof VALID_TABS[number];
 
 function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const activeTab: TabValue = useMemo(() => {
+    const h = location.hash?.replace(/^#/, "") as TabValue;
+    return VALID_TABS.includes(h) ? h : "bookings";
+  }, [location.hash]);
+
+  const handleTabChange = (value: string) => {
+    navigate({ to: "/dashboard", hash: value, replace: true });
+  };
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -68,14 +85,13 @@ function DashboardPage() {
           <StatCard icon={Package} label="Orders" value={String(orders.length)} />
         </div>
 
-        <Tabs defaultValue="bookings">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="mb-6 flex-wrap h-auto">
             <TabsTrigger value="bookings">Repair Bookings</TabsTrigger>
             <TabsTrigger value="orders">My Orders</TabsTrigger>
             <TabsTrigger value="appliances">My Appliances</TabsTrigger>
             <TabsTrigger value="amc">AMC Plans</TabsTrigger>
-            <TabsTrigger value="addresses">Addresses</TabsTrigger>
-            <TabsTrigger value="refer">Refer & Earn</TabsTrigger>
+            <TabsTrigger value="profile">Profile</TabsTrigger>
           </TabsList>
 
           <TabsContent value="bookings">
@@ -129,21 +145,126 @@ function DashboardPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="addresses">
-            <Card className="p-6"><MapPin className="h-8 w-8 text-primary mb-2" /><div className="font-semibold">Saved addresses</div><p className="text-sm text-muted-foreground mt-1">Your delivery addresses appear here when you place orders.</p></Card>
-          </TabsContent>
-
-          <TabsContent value="refer">
-            <Card className="p-6 text-center">
-              <Gift className="h-10 w-10 text-primary mx-auto mb-2" />
-              <h3 className="font-semibold">Refer & earn ₹200</h3>
-              <p className="text-sm text-muted-foreground mt-1">Share your code with friends.</p>
-              <div className="mt-4 inline-block bg-muted px-4 py-2 rounded font-mono font-bold">GAYATRI{user.id.slice(0,4).toUpperCase()}</div>
-            </Card>
+          <TabsContent value="profile">
+            <ProfilePanel userId={user.id} email={user.email ?? ""} />
           </TabsContent>
         </Tabs>
       </div>
     </Layout>
+  );
+}
+
+function ProfilePanel({ userId, email }: { userId: string; email: string }) {
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    supabase.from("profiles").select("*").eq("id", userId).maybeSingle().then(({ data }) => {
+      const p = (data as Profile | null) ?? { id: userId, full_name: null, phone: null };
+      setProfile(p);
+      setFullName(p.full_name ?? "");
+      setPhone(p.phone ?? "");
+      setLoading(false);
+    });
+  }, [userId]);
+
+  const save = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("profiles").upsert({
+      id: userId,
+      full_name: fullName.trim() || null,
+      phone: phone.trim() || null,
+    });
+    setSaving(false);
+    if (error) toast.error("Could not save profile");
+    else toast.success("Profile updated");
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/" });
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card className="p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <UserIcon className="h-5 w-5 text-primary" />
+          <h3 className="font-semibold">Personal information</h3>
+        </div>
+        {loading ? (
+          <div className="h-32 animate-pulse bg-muted/40 rounded" />
+        ) : (
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="full_name">Full name</Label>
+              <Input id="full_name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your name" />
+            </div>
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" value={email} readOnly disabled />
+            </div>
+            <div>
+              <Label htmlFor="phone">Phone</Label>
+              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 ..." />
+            </div>
+            <div className="md:col-span-2">
+              <Button onClick={save} disabled={saving} className="bg-gradient-gold text-primary-foreground">
+                {saving ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <div className="grid md:grid-cols-2 gap-3">
+        <Card className="p-4 flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-gradient-gold flex items-center justify-center"><Wallet className="h-5 w-5 text-primary-foreground" /></div>
+          <div>
+            <div className="text-xs text-muted-foreground">Wallet balance</div>
+            <div className="font-bold text-lg">₹0</div>
+            <div className="text-[10px] text-muted-foreground">Coming soon</div>
+          </div>
+        </Card>
+        <Card className="p-4 flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-gradient-gold flex items-center justify-center"><Gift className="h-5 w-5 text-primary-foreground" /></div>
+          <div>
+            <div className="text-xs text-muted-foreground">Cashback earned</div>
+            <div className="font-bold text-lg">₹0</div>
+            <div className="text-[10px] text-muted-foreground">Coming soon</div>
+          </div>
+        </Card>
+      </div>
+
+      <Card className="p-6">
+        <div className="flex items-center gap-2 mb-2">
+          <MapPin className="h-5 w-5 text-primary" />
+          <h3 className="font-semibold">Saved addresses</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">Your delivery addresses appear here when you place orders.</p>
+      </Card>
+
+      <Card className="p-6 text-center">
+        <Gift className="h-10 w-10 text-primary mx-auto mb-2" />
+        <h3 className="font-semibold">Refer & earn ₹200</h3>
+        <p className="text-sm text-muted-foreground mt-1">Share your code with friends.</p>
+        <div className="mt-4 inline-block bg-muted px-4 py-2 rounded font-mono font-bold">GAYATRI{userId.slice(0,4).toUpperCase()}</div>
+      </Card>
+
+      <Card className="p-6 flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="font-semibold">Sign out</h3>
+          <p className="text-sm text-muted-foreground">You'll need to log in again to access your account.</p>
+        </div>
+        <Button variant="outline" onClick={logout}>
+          <LogOut className="h-4 w-4 mr-2" /> Logout
+        </Button>
+      </Card>
+    </div>
   );
 }
 
