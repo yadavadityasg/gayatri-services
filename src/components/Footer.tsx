@@ -38,7 +38,7 @@ export function Footer() {
           <h4 className="text-primary font-semibold mb-4">Contact</h4>
           <ul className="space-y-2 text-sm opacity-80">
             <li className="flex gap-2"><MapPin className="h-4 w-4 text-primary shrink-0 mt-0.5" />Sector 15, Vashi, Navi Mumbai - 400703</li>
-            <li className="flex gap-2"><Phone className="h-4 w-4 text-primary shrink-0 mt-0.5" />+91 98765 43210</li>
+            <li className="flex gap-2"><Phone className="h-4 w-4 text-primary shrink-0 mt-0.5" />+91 80808 48188</li>
             <li className="flex gap-2"><Mail className="h-4 w-4 text-primary shrink-0 mt-0.5" />info@gayatriservice.in</li>
           </ul>
         </div>
