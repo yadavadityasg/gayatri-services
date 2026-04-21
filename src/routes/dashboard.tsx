@@ -78,13 +78,6 @@ function DashboardPage() {
       </section>
 
       <div className="container mx-auto px-4 py-8">
-        <div className="grid md:grid-cols-4 gap-3 mb-6">
-          <StatCard icon={Wallet} label="Wallet balance" value="₹0" subtitle="Coming soon" />
-          <StatCard icon={Gift} label="Cashback earned" value="₹0" subtitle="Coming soon" />
-          <StatCard icon={Calendar} label="Bookings" value={String(bookings.length)} />
-          <StatCard icon={Package} label="Orders" value={String(orders.length)} />
-        </div>
-
         <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="mb-6 flex-wrap h-auto">
             <TabsTrigger value="bookings">Repair Bookings</TabsTrigger>
