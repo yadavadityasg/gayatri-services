@@ -4,20 +4,20 @@ import { Wrench, ShoppingBag, Calendar, User } from "lucide-react";
 export function MobileBar() {
   const location = useLocation();
   const path = location.pathname;
-  const tab = new URLSearchParams(location.search).get("tab");
+  const hash = location.hash;
 
   const items = [
-    { to: "/booking", search: {}, label: "Book", icon: Wrench },
-    { to: "/shop", search: {}, label: "Shop", icon: ShoppingBag },
-    { to: "/dashboard", search: { tab: "bookings" }, label: "Bookings", icon: Calendar },
-    { to: "/dashboard", search: { tab: "profile" }, label: "Profile", icon: User },
+    { to: "/booking" as const, hash: "", label: "Book", icon: Wrench },
+    { to: "/shop" as const, hash: "", label: "Shop", icon: ShoppingBag },
+    { to: "/dashboard" as const, hash: "bookings", label: "Bookings", icon: Calendar },
+    { to: "/dashboard" as const, hash: "profile", label: "Profile", icon: User },
   ];
 
-  const isActive = (it: (typeof items)[0]) => {
+  const isActive = (it: (typeof items)[number]) => {
     if (it.to !== "/dashboard") return path === it.to;
-    const itemTab = (it.search as any).tab;
-    if (!tab || tab === "") return itemTab === "bookings"; // default tab
-    return tab === itemTab;
+    if (path !== "/dashboard") return false;
+    if (!hash) return it.hash === "bookings"; // default
+    return hash === it.hash;
   };
 
   return (
@@ -26,7 +26,7 @@ export function MobileBar() {
         <Link
           key={i}
           to={it.to}
-          search={it.search}
+          hash={it.hash || undefined}
           className={`flex flex-col items-center py-2 text-[11px] hover:text-primary ${isActive(it) ? "text-primary" : "text-muted-foreground"}`}
         >
           <it.icon className="h-5 w-5 mb-0.5" />
