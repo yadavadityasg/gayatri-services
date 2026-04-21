@@ -10,7 +10,7 @@ export function FloatingActions() {
   }, []);
   return (
     <div className="fixed bottom-20 lg:bottom-6 right-4 z-40 flex flex-col gap-3">
-      <a href="https://wa.me/919876543210" target="_blank" rel="noopener"
+      <a href="https://wa.me/918080848188" target="_blank" rel="noopener"
          className="bg-[#25D366] text-white rounded-full p-3 shadow-elevated animate-float" aria-label="WhatsApp">
         <MessageCircle className="h-6 w-6" />
       </a>

@@ -36,7 +36,7 @@ export function Header() {
         <div className="container mx-auto px-4 py-2 flex justify-between">
           <div className="flex gap-6">
             <span className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 text-primary" />info@gayatriservice.in</span>
-            <span className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-primary" />+91 98765 43210</span>
+            <span className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-primary" />+91 80808 48188</span>
           </div>
           <span className="text-primary">Same-day service · 90-day warranty</span>
         </div>

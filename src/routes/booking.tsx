@@ -120,7 +120,7 @@ function BookingPage() {
             </Card>
             <div className="mt-6 grid grid-cols-2 gap-3">
               <Link to="/dashboard"><Button variant="outline" className="w-full">My Bookings</Button></Link>
-              <a href="tel:+919876543210"><Button className="w-full bg-gradient-gold text-primary-foreground">Contact</Button></a>
+              <a href="tel:+918080848188"><Button className="w-full bg-gradient-gold text-primary-foreground">Contact</Button></a>
             </div>
           </Card>
         </div>
