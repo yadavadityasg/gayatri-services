@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { supabase } from "@/integrations/supabase/client";
+import { catalogGet } from "@/lib/catalog-api";
 import { fmt } from "@/lib/cart";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -12,8 +13,10 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/amc")({
   head: () => ({ meta: [{ title: "AMC Plans — Annual Maintenance Contracts | Gayatri" }, { name: "description", content: "Priority booking, free spare parts, unlimited services. Pick from Silver, Gold or Platinum AMC plans." }] }),
   loader: async () => {
+    const local = await catalogGet<{ plans: unknown[] }>("/amc");
+    if (local) return local;
     const { data, error } = await supabase.from("amc_plans").select("*").eq("active", true).order("sort_order");
-    if (error) throw error;
+    if (error) console.error("[amc] failed to load plans", error.message);
     return { plans: data ?? [] };
   },
   component: AmcPage,

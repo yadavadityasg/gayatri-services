@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { catalogGet } from "@/lib/catalog-api";
 import heroAc from "@/assets/hero-ac-repair.png";
 import heroWashing from "@/assets/hero-washing-repair.png";
 
@@ -30,10 +31,14 @@ export const Route = createFileRoute("/")({
     ],
   }),
   loader: async () => {
+    const local = await catalogGet<{ services: unknown[]; products: unknown[] }>("/home");
+    if (local) return local;
     const [servicesRes, productsRes] = await Promise.all([
       supabase.from("services").select("*").eq("active", true).order("name").limit(10),
       supabase.from("products").select("*").eq("active", true).order("name").limit(4),
     ]);
+    if (servicesRes.error) console.error("[home] services", servicesRes.error.message);
+    if (productsRes.error) console.error("[home] products", productsRes.error.message);
     return { services: servicesRes.data ?? [], products: productsRes.data ?? [] };
   },
   component: HomePage,
@@ -116,7 +121,7 @@ function HomePage() {
       <section className="bg-muted/40 py-14">
         <div className="container mx-auto px-4">
           <div className="text-center mb-10">
-            <h2 className="text-3xl md:text-4xl font-bold">Why Choose <span className="text-gradient-gold">Gayatri</span></h2>
+            <h2 className="text-3xl md:text-4xl font-bold">Why Choose <span className="text-gradient-gold">Gayatri Service</span></h2>
           </div>
           <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
             {[

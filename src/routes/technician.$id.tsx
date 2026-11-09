@@ -4,10 +4,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { catalogGet } from "@/lib/catalog-api";
 import { Star, ShieldCheck, Award, Clock, ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/technician/$id")({
   loader: async ({ params }) => {
+    const local = await catalogGet<{ tech: any }>(`/technicians/${encodeURIComponent(params.id)}`);
+    if (local?.tech) return local;
     const { data, error } = await supabase.from("technicians").select("*").eq("id", params.id).maybeSingle();
     if (error || !data) throw notFound();
     return { tech: data };

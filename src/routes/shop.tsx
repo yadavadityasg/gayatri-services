@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { BRANDS, CATEGORIES } from "@/data/catalog";
 import { supabase } from "@/integrations/supabase/client";
+import { catalogGet } from "@/lib/catalog-api";
 import { addToCart, fmt } from "@/lib/cart";
 import { Heart, Star, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -20,8 +21,10 @@ export const Route = createFileRoute("/shop")({
     ],
   }),
   loader: async () => {
+    const local = await catalogGet<{ products: unknown[] }>("/products");
+    if (local) return local;
     const { data, error } = await supabase.from("products").select("*").eq("active", true).order("name");
-    if (error) throw error;
+    if (error) console.error("[shop] failed to load products", error.message);
     return { products: data ?? [] };
   },
   component: ShopPage,

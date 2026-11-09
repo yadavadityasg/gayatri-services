@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BRANDS } from "@/data/catalog";
 import { supabase } from "@/integrations/supabase/client";
+import { catalogGet } from "@/lib/catalog-api";
 import { fmt } from "@/lib/cart";
 import { CheckCircle2, ShieldCheck, Clock, Wrench, ChevronRight, Star } from "lucide-react";
 import { useState } from "react";
@@ -14,6 +15,8 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/services/$slug")({
   loader: async ({ params }) => {
+    const local = await catalogGet<{ service: any }>(`/services/${encodeURIComponent(params.slug)}`);
+    if (local?.service) return local;
     const { data, error } = await supabase.from("services").select("*").eq("slug", params.slug).maybeSingle();
     if (error || !data) throw notFound();
     return { service: data };

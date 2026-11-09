@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CATEGORIES, type ServiceCategory } from "@/data/catalog";
 import { supabase } from "@/integrations/supabase/client";
+import { catalogGet } from "@/lib/catalog-api";
 import { fmt } from "@/lib/cart";
 import { Clock, CheckCircle2, ArrowRight } from "lucide-react";
 import { useState } from "react";
@@ -21,8 +22,10 @@ export const Route = createFileRoute("/services")({
     ],
   }),
   loader: async () => {
+    const local = await catalogGet<{ services: unknown[] }>("/services");
+    if (local) return local;
     const { data, error } = await supabase.from("services").select("*").eq("active", true).order("name");
-    if (error) throw error;
+    if (error) console.error("[services] failed to load services", error.message);
     return { services: data ?? [] };
   },
   component: ServicesPage,

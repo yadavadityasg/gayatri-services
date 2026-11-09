@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { catalogGet } from "@/lib/catalog-api";
 import { fmt } from "@/lib/cart";
 import { Search } from "lucide-react";
 import { z } from "zod";
@@ -17,11 +18,15 @@ export const Route = createFileRoute("/search")({
   loader: async ({ deps }) => {
     const term = deps.q.trim();
     if (!term) return { services: [], products: [] };
+    const local = await catalogGet<{ services: unknown[]; products: unknown[] }>(`/search?q=${encodeURIComponent(term)}`);
+    if (local) return local;
     const like = `%${term}%`;
     const [svcRes, prodRes] = await Promise.all([
       supabase.from("services").select("*").eq("active", true).or(`name.ilike.${like},category_label.ilike.${like}`),
       supabase.from("products").select("*").eq("active", true).or(`name.ilike.${like},brand.ilike.${like}`),
     ]);
+    if (svcRes.error) console.error("[search] services", svcRes.error.message);
+    if (prodRes.error) console.error("[search] products", prodRes.error.message);
     return { services: svcRes.data ?? [], products: prodRes.data ?? [] };
   },
   head: () => ({ meta: [{ title: "Search | Gayatri" }] }),

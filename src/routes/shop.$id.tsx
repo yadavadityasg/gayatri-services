@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { catalogGet } from "@/lib/catalog-api";
 import { addToCart, fmt } from "@/lib/cart";
 import { Star, ShieldCheck, Truck, Wrench, ChevronRight, Heart, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
@@ -11,6 +12,8 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/$id")({
   loader: async ({ params }) => {
+    const local = await catalogGet<{ product: any; related: any[] }>(`/products/${encodeURIComponent(params.id)}`);
+    if (local?.product) return local;
     const { data: product, error } = await supabase.from("products").select("*").eq("id", params.id).maybeSingle();
     if (error || !product) throw notFound();
     const { data: related } = await supabase.from("products").select("*").eq("category", product.category).eq("active", true).neq("id", product.id).limit(4);

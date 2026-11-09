@@ -1,18 +1,33 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
 
-export function useIsAdmin() {
-  const { user, loading: authLoading } = useAuth();
+export type AdminUser = { id: string; email: string; role: string };
+
+export function useIsAdmin(refreshKey = 0) {
+  const [user, setUser] = useState<AdminUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) { setIsAdmin(false); setLoading(false); return; }
-    supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
-      .then(({ data }) => { setIsAdmin(!!data); setLoading(false); });
-  }, [user, authLoading]);
+    let cancelled = false;
+    fetch("/api/auth/session", { credentials: "same-origin" })
+      .then((response) => (response.ok ? response.json() : { user: null }))
+      .then((data) => {
+        if (cancelled) return;
+        const next = (data.user ?? null) as AdminUser | null;
+        setUser(next);
+        setIsAdmin(next?.role === "admin");
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setUser(null);
+        setIsAdmin(false);
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
 
-  return { isAdmin, loading: loading || authLoading, user };
+  return { isAdmin, loading, user };
 }

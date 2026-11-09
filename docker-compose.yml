@@ -1,0 +1,116 @@
+# Local replacement for the single AWS Lambda SSR app.
+#   app      http://localhost:3000   customer site
+#   admin    http://localhost:3001   admin portal
+#   postgres localhost:5432          catalog database, attached to the app
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gayatri
+      POSTGRES_PASSWORD: gayatri
+      POSTGRES_DB: gayatri
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/01-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./docker/postgres/02-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - gayatri
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gayatri -d gayatri"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  app:
+    image: gayatri-app:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_SURFACE: app
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+        VITE_SUPABASE_PROJECT_ID: ${VITE_SUPABASE_PROJECT_ID}
+        VITE_PUBLIC_APP_URL: http://localhost:3000
+        VITE_ADMIN_APP_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_SURFACE: app
+      PORT: 3000
+      DATABASE_URL: postgres://gayatri:gayatri@postgres:5432/gayatri
+      UPLOAD_DIR: /app/uploads
+      ADMIN_EMAIL: admin@gayatriservice.in
+      ADMIN_PASSWORD: Admin1234!
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+      VITE_PUBLIC_APP_URL: http://localhost:3000
+      VITE_ADMIN_APP_URL: http://localhost:3001
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - gayatri
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  admin:
+    image: gayatri-admin:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_SURFACE: admin
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+        VITE_SUPABASE_PROJECT_ID: ${VITE_SUPABASE_PROJECT_ID}
+        VITE_PUBLIC_APP_URL: http://localhost:3000
+        VITE_ADMIN_APP_URL: http://localhost:3001
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_SURFACE: admin
+      PORT: 3000
+      DATABASE_URL: postgres://gayatri:gayatri@postgres:5432/gayatri
+      UPLOAD_DIR: /app/uploads
+      ADMIN_EMAIL: admin@gayatriservice.in
+      ADMIN_PASSWORD: Admin1234!
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+      VITE_PUBLIC_APP_URL: http://localhost:3000
+      VITE_ADMIN_APP_URL: http://localhost:3001
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - gayatri
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+networks:
+  gayatri:
+    name: gayatri
+
+volumes:
+  postgres_data:
+  uploads_data:
